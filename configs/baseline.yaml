@@ -1,0 +1,7 @@
+# Config: one cell of the A/B grid (model x prompt version).
+id: baseline
+model: openai/gpt-4o-mini          # litellm model id
+prompt_version: v1
+temperature: 0.0
+max_iters: 6
+timeout_s: 60

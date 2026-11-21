@@ -1,0 +1,17 @@
+# Golden task set (Phase 3 target: 50 tasks).
+# Schema per task:
+#   id:              unique string
+#   question:        natural-language question for the agent
+#   expected_result: list of rows (each row a list); SOURCE OF TRUTH for scoring
+#   expected_sql:    reference SQL used only by `verify-tasks`, never for scoring
+#   difficulty:      easy | medium | hard
+#   tags:            [aggregation, join, filter, ranking, subquery, ...]
+#   ordered:         true only for ranking questions where row order matters
+tasks:
+  - id: example_001
+    question: How many product categories are there?
+    expected_result: [[8]]  # placeholder; snapshotted from the real DB in Phase 3
+    expected_sql: SELECT COUNT(*) FROM categories
+    difficulty: easy
+    tags: [aggregation]
+    ordered: false
