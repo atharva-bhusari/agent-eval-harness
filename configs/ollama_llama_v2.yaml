@@ -1,0 +1,9 @@
+# Local dev config, v2 prompt (compact schema in the system prompt). Free, offline.
+# Pair with ollama_llama.yaml (v1) for a local prompt A/B. Not part of the hosted A/B grid.
+id: ollama_llama_v2
+model: ollama/llama3.1:8b   # litellm model id (routed to ollama_chat for tool calling)
+prompt_version: v2
+temperature: 0.0
+max_iters: 12
+timeout_s: 300
+concurrency: 1     # one local GPU: parallel requests would only queue and time out

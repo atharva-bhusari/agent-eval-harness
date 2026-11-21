@@ -92,7 +92,7 @@ class ScriptedLLM:
         self.responses = list(responses)
         self.seen: list[list[dict]] = []
 
-    def __call__(self, messages, tools):
+    def __call__(self, messages, tools, timeout=None):
         self.seen.append(list(messages))
         nxt = self.responses.pop(0) if self.responses else LLMResponse(content="done")
         if isinstance(nxt, Exception):
@@ -340,3 +340,17 @@ def test_no_nudge_once_a_query_has_succeeded():
     result = TextToSQLAgent(llm).run("How many categories?")
     assert result.n_nudges == 0
     assert len(llm.seen) == 2
+
+
+@needs_db
+def test_tool_output_is_deterministic_across_runs():
+    # Unordered GROUP BY / DISTINCT results must render identically every time, or cached
+    # re-runs diverge (the model sees different text -> different next-turn cache key).
+    agent = TextToSQLAgent(ScriptedLLM())
+    texts = set()
+    for _ in range(20):
+        with agent._cursor_lock:
+            cur = agent.con.cursor()
+        texts.add(SqlTools(cur).run_sql("SELECT DISTINCT country FROM suppliers").text)
+        cur.close()
+    assert len(texts) == 1

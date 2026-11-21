@@ -13,6 +13,8 @@ data/*.duckdb.tmp
 data/raw/
 results/*.sqlite
 results/*.db
+results/*.sqlite-wal
+results/*.sqlite-shm
 .cache/
 
 # Secrets

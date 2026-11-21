@@ -6,3 +6,4 @@ prompt_version: v1
 temperature: 0.0
 max_iters: 12
 timeout_s: 300
+concurrency: 1     # one local GPU: parallel requests would only queue and time out

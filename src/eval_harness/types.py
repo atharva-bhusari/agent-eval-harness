@@ -73,11 +73,19 @@ class AgentResult:
     stop_reason: str = "answered"  # one of STOP_REASONS; tells the classifier why it ended
     n_nudges: int = 0  # times the agent reminded the model to actually call run_sql
     n_recovered_calls: int = 0  # tool calls parsed from JSON text instead of native calls
+    n_llm_calls: int = 0
+    n_cached_calls: int = 0  # LLM calls served from the response cache
+    # cost_usd / latency_ms are *nominal*: cache hits replay the cost and latency measured
+    # when the call really ran, so configs stay comparable on re-runs. spent_usd is what
+    # this run actually cost (0 for cache hits).
+    spent_usd: float = 0.0
+    messages: list[dict] = field(default_factory=list)  # full transcript, for drill-down
 
 
 STOP_REASONS: tuple[str, ...] = (
     "answered",  # model gave a final reply (answer_rows may still be None/wrong)
     "max_iters",  # hit Config.max_iters model turns without a final reply
+    "timeout",  # ran past Config.timeout_s
     "error",  # uncaught exception (LLM/provider failure, bug); see AgentResult.error
 )
 
@@ -102,6 +110,9 @@ class Config:
     # which would leave no budget for self-correction.
     max_iters: int = 12
     timeout_s: int = 60
+    # Runs in flight at once. 5 suits hosted APIs; use 1 for a single local GPU (Ollama),
+    # where parallel requests just queue up and time out.
+    concurrency: int = 5
 
 
 @dataclass(frozen=True)
@@ -130,6 +141,18 @@ class RunRecord:
     n_retries: int
     final_sql: str | None
     ts: str  # ISO timestamp
+    # --- extensions beyond the spec's columns (diagnostics + drill-down) ---------------
+    difficulty: str = "medium"
+    stop_reason: str = "answered"
+    error: str | None = None
+    score_detail: str = ""
+    n_nudges: int = 0
+    n_recovered_calls: int = 0
+    n_llm_calls: int = 0
+    n_cached_calls: int = 0
+    spent_usd: float = 0.0
+    answer_json: str | None = None  # agent's rows (truncated), JSON
+    transcript_json: str | None = None  # full message transcript, JSON
 
     def __post_init__(self) -> None:
         if self.success and self.failure_category is not None:

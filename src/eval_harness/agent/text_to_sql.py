@@ -8,10 +8,14 @@ Graph:
 - ``tools`` executes the requested tools (list_tables, get_schema, dry_run, run_sql) and
   appends their outputs, including DB errors, so the model can fix its query and retry.
 - The loop ends when the model replies without tool calls ("answered"), when it has used
-  ``max_iters`` model turns ("max_iters"), or on an exception ("error").
+  ``max_iters`` model turns ("max_iters"), when it passes its deadline ("timeout"), or on
+  an exception ("error").
 
 The answer is the result of the LAST successful ``run_sql``. The agent is pure: it returns
 an ``AgentResult`` and never touches the metrics store.
+
+Thread safety: one agent instance can serve concurrent ``run()`` calls. Per-run resources
+(DB cursor, deadline) travel in LangGraph's per-invocation config, never on ``self``.
 
 CLI:  python -m eval_harness.agent.text_to_sql "How many orders shipped to France?"
 """
@@ -20,16 +24,18 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
 import time
 from pathlib import Path
 from typing import Any, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, START, StateGraph
 
 from eval_harness import db
 from eval_harness.agent.prompts import system_prompt
 from eval_harness.agent.sql_tools import TOOL_SCHEMAS, SqlTools
-from eval_harness.llm import LLM, LiteLLMClient, ToolCallRequest
+from eval_harness.llm import LLM, LiteLLMClient, ToolCallRequest, is_transient
 from eval_harness.types import AgentResult, Config, ToolCall
 
 SQL_TOOLS = {"dry_run", "run_sql"}
@@ -57,6 +63,11 @@ class AgentState(TypedDict):
     error: str | None
     n_nudges: int
     n_recovered_calls: int
+    n_llm_calls: int
+    n_cached_calls: int
+    spent_usd: float
+    llm_wall_ms: int  # time actually spent waiting on the LLM in this run
+    llm_nominal_ms: int  # LLM latency as originally measured (replayed for cache hits)
 
 
 def count_retries(tool_calls: list[ToolCall]) -> int:
@@ -112,19 +123,33 @@ class TextToSQLAgent:
         llm: LLM,
         prompt_version: str = "v1",
         max_iters: int = 12,
+        timeout_s: float | None = None,
         db_path: Path | str = db.DEFAULT_DB_PATH,
     ):
         self.llm = llm
         self.max_iters = max_iters
+        self.timeout_s = timeout_s
         self.con = db.connect(db_path, read_only=True)
+        # Deterministic tool output: with multiple threads DuckDB returns GROUP BY / DISTINCT
+        # rows in a different order run to run (measured: 23 orderings in 30 runs). The model
+        # then sees different text, the next turn's cache key changes, and re-runs stop being
+        # reproducible. One thread costs nothing noticeable on a DB this size.
+        self.con.execute("SET threads TO 1")
+        self._cursor_lock = threading.Lock()
         self.system_prompt = system_prompt(prompt_version, self.con)
         self.graph = self._build_graph()
-        self.last_messages: list[dict] = []  # transcript of the latest run, for debugging
+        self.last_messages: list[dict] = []  # latest finished run (debug/CLI convenience)
 
     @classmethod
     def from_config(cls, config: Config, llm: LLM | None = None, **kwargs: Any):
         llm = llm or LiteLLMClient(config.model, temperature=config.temperature)
-        return cls(llm, prompt_version=config.prompt_version, max_iters=config.max_iters, **kwargs)
+        return cls(
+            llm,
+            prompt_version=config.prompt_version,
+            max_iters=config.max_iters,
+            timeout_s=config.timeout_s,
+            **kwargs,
+        )
 
     # ---- graph ----------------------------------------------------------------------
     def _build_graph(self):
@@ -142,13 +167,27 @@ class TextToSQLAgent:
             return END
         return "tools" if state["pending"] else "model"  # no pending calls = nudged
 
-    def _model_node(self, state: AgentState) -> dict:
+    def _model_node(self, state: AgentState, config: RunnableConfig) -> dict:
         if state["turns"] >= self.max_iters:
             return {"stop_reason": "max_iters"}
+        deadline = config["configurable"].get("deadline")
+        remaining = None if deadline is None else deadline - time.perf_counter()
+        if remaining is not None and remaining <= 0:
+            return {"stop_reason": "timeout"}
+
+        t0 = time.perf_counter()
         try:
-            resp = self.llm(state["messages"], TOOL_SCHEMAS)
+            resp = self.llm(state["messages"], TOOL_SCHEMAS, timeout=remaining)
         except Exception as exc:  # provider/network failure: record it, keep the trace
-            return {"stop_reason": "error", "error": f"{type(exc).__name__}: {exc}"}
+            wall = int((time.perf_counter() - t0) * 1000)
+            out_of_time = deadline is not None and time.perf_counter() >= deadline
+            return {
+                "stop_reason": "timeout" if out_of_time and is_transient(exc) else "error",
+                "error": f"{type(exc).__name__}: {exc}",
+                "llm_wall_ms": state["llm_wall_ms"] + wall,
+                "llm_nominal_ms": state["llm_nominal_ms"] + wall,
+            }
+        wall = int((time.perf_counter() - t0) * 1000)
 
         calls = list(resp.tool_calls)
         recovered = 0
@@ -188,10 +227,15 @@ class TextToSQLAgent:
             "stop_reason": stop_reason,
             "n_nudges": nudges,
             "n_recovered_calls": state["n_recovered_calls"] + recovered,
+            "n_llm_calls": state["n_llm_calls"] + 1,
+            "n_cached_calls": state["n_cached_calls"] + int(resp.cached),
+            "spent_usd": state["spent_usd"] + (0.0 if resp.cached else resp.cost_usd),
+            "llm_wall_ms": state["llm_wall_ms"] + wall,
+            "llm_nominal_ms": state["llm_nominal_ms"] + (resp.latency_ms if resp.cached else wall),
         }
 
-    def _tools_node(self, state: AgentState) -> dict:
-        tools = SqlTools(self._cursor)
+    def _tools_node(self, state: AgentState, config: RunnableConfig) -> dict:
+        tools = SqlTools(config["configurable"]["cursor"])
         messages = list(state["messages"])
         calls = list(state["tool_calls"])
         answer_rows, final_sql = state["answer_rows"], state["final_sql"]
@@ -214,7 +258,9 @@ class TextToSQLAgent:
     # ---- Agent protocol -------------------------------------------------------------
     def run(self, question: str) -> AgentResult:
         start = time.perf_counter()
-        self._cursor = self.con.cursor()  # per-run cursor: safe when runs use threads
+        with self._cursor_lock:  # the shared connection isn't thread-safe; cursors are
+            cursor = self.con.cursor()
+        deadline = start + self.timeout_s if self.timeout_s else None
         state: AgentState = {
             "messages": [
                 {"role": "system", "content": self.system_prompt},
@@ -232,13 +278,27 @@ class TextToSQLAgent:
             "error": None,
             "n_nudges": 0,
             "n_recovered_calls": 0,
+            "n_llm_calls": 0,
+            "n_cached_calls": 0,
+            "spent_usd": 0.0,
+            "llm_wall_ms": 0,
+            "llm_nominal_ms": 0,
+        }
+        run_config: RunnableConfig = {
+            "recursion_limit": 2 * self.max_iters + 5,
+            "configurable": {"cursor": cursor, "deadline": deadline},
         }
         try:
-            final = self.graph.invoke(state, {"recursion_limit": 2 * self.max_iters + 5})
+            final = self.graph.invoke(state, run_config)
         except Exception as exc:  # bug in graph/tools: still return a result, never raise
             final = {**state, "stop_reason": "error", "error": f"{type(exc).__name__}: {exc}"}
         finally:
-            self._cursor.close()
+            cursor.close()
+
+        # Nominal latency: real wall time, but with cached LLM calls counted at the latency
+        # they had when they actually ran, so cached re-runs report comparable latency.
+        wall_ms = int((time.perf_counter() - start) * 1000)
+        latency_ms = max(0, wall_ms - final["llm_wall_ms"]) + final["llm_nominal_ms"]
 
         self.last_messages = final["messages"]
         return AgentResult(
@@ -249,11 +309,15 @@ class TextToSQLAgent:
             prompt_tokens=final["prompt_tokens"],
             completion_tokens=final["completion_tokens"],
             cost_usd=final["cost_usd"],
-            latency_ms=int((time.perf_counter() - start) * 1000),
+            latency_ms=latency_ms,
             error=final["error"],
             stop_reason=final["stop_reason"] or "error",
             n_nudges=final["n_nudges"],
             n_recovered_calls=final["n_recovered_calls"],
+            n_llm_calls=final["n_llm_calls"],
+            n_cached_calls=final["n_cached_calls"],
+            spent_usd=final["spent_usd"],
+            messages=final["messages"],
         )
 
 
