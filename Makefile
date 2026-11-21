@@ -6,8 +6,8 @@ CONFIG ?= configs/baseline.yaml
 setup:          ## install deps into .venv
 	uv sync
 
-db:             ## build data/northwind.duckdb
-	@echo "not implemented (Phase 1)"
+db:             ## build data/northwind.duckdb (downloads the pinned Northwind dump)
+	uv run python -m eval_harness.db build
 
 verify-tasks:   ## check every expected_sql reproduces expected_result
 	@echo "not implemented (Phase 3)"

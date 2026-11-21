@@ -28,7 +28,7 @@ def _todo(phase: int, extra: str = "") -> int:
 
 TARGETS = {
     "setup": lambda a: _run(["uv", "sync"]),
-    "db": lambda a: _todo(1),
+    "db": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.db", "build"]),
     "verify-tasks": lambda a: _todo(3),
     "eval": lambda a: _todo(4, f"CONFIG={a.config}"),
     "sweep": lambda a: _todo(7),

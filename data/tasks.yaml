@@ -10,7 +10,7 @@
 tasks:
   - id: example_001
     question: How many product categories are there?
-    expected_result: [[8]]  # placeholder; snapshotted from the real DB in Phase 3
+    expected_result: [[8]]
     expected_sql: SELECT COUNT(*) FROM categories
     difficulty: easy
     tags: [aggregation]

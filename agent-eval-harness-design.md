@@ -106,7 +106,7 @@ agent-eval-harness/
 │   ├── haiku.yaml
 │   └── gpt4o_mini.yaml
 ├── data/
-│   ├── northwind.duckdb       # built by `make db` (gitignored); loader script commits SQL
+│   ├── northwind.duckdb       # built by `make db` (gitignored); dump downloaded from a pinned commit + SHA-256
 │   └── tasks.yaml             # 50 golden tasks
 ├── src/eval_harness/
 │   ├── __init__.py
@@ -363,3 +363,4 @@ Writes are **upserts keyed by `run_id`** so re-running a task/config overwrites 
 - 2026-11-15: Design finalized; build not yet started. Project `agent-eval-harness` moved to **building** on the weekend-project tracker.
 - Open decisions before build: (1) A/B models — default gpt-4o-mini vs Claude Haiku, or all-local Ollama for zero cost; (2) keep Chinook for v1, graduate to Spider/BIRD later.
 - 2026-11-15: Decisions — (1) A/B models: **gpt-4o-mini vs Claude Haiku**; (2) reference DB switched from Chinook to **Northwind** (Spider/BIRD still the later graduation path). Phase 0 scaffold complete.
+- 2026-11-21: Phase 1 complete. Source = `pthom/northwind_psql` pinned to commit `4aa7967`, verified by SHA-256 and downloaded at build time rather than committed (the source repo has no clear license). Conversion: `real`→DOUBLE, empty `bytea` image columns dropped, PKs enforced, FKs stored as column comments for the agent's `get_schema`.

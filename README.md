@@ -10,7 +10,8 @@ The reference agent-under-test is a **LangGraph text-to-SQL agent** over a local
 the Northwind database (a food import/export company: customers, orders, products, suppliers,
 employees). It sits behind an `Agent` Protocol, so any agent can be swapped in.
 
-> **Status:** 🚧 Phase 0 (scaffold) complete. Results table lands after Phase 7.
+> **Status:** 🚧 Phases 0–1 complete (scaffold, Northwind DB + result canonicalization).
+> Results table lands after Phase 7.
 
 ## Architecture
 
@@ -42,7 +43,7 @@ make lint        # or: uv run python tasks.py lint
 | Target | What it does | Phase |
 |---|---|---|
 | `setup` | install dependencies | 0 ✅ |
-| `db` | build `data/northwind.duckdb` | 1 |
+| `db` | download the pinned Northwind dump and build `data/northwind.duckdb` | 1 ✅ |
 | `verify-tasks` | check every golden task's reference SQL reproduces its expected rows | 3 |
 | `eval CONFIG=…` | run all tasks for one config | 4 |
 | `report` / `dashboard` | Markdown table / Streamlit app | 6 |

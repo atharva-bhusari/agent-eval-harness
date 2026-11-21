@@ -9,6 +9,8 @@ __pycache__/
 # Generated data / results
 data/*.duckdb
 data/*.duckdb.wal
+data/*.duckdb.tmp
+data/raw/
 results/*.sqlite
 results/*.db
 .cache/
