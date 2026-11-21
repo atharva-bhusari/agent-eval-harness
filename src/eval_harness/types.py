@@ -70,6 +70,16 @@ class AgentResult:
     cost_usd: float
     latency_ms: int
     error: str | None = None  # set if the agent hard-failed
+    stop_reason: str = "answered"  # one of STOP_REASONS; tells the classifier why it ended
+    n_nudges: int = 0  # times the agent reminded the model to actually call run_sql
+    n_recovered_calls: int = 0  # tool calls parsed from JSON text instead of native calls
+
+
+STOP_REASONS: tuple[str, ...] = (
+    "answered",  # model gave a final reply (answer_rows may still be None/wrong)
+    "max_iters",  # hit Config.max_iters model turns without a final reply
+    "error",  # uncaught exception (LLM/provider failure, bug); see AgentResult.error
+)
 
 
 @runtime_checkable
@@ -87,7 +97,10 @@ class Config:
     model: str  # litellm model id, e.g. "openai/gpt-4o-mini"
     prompt_version: str
     temperature: float = 0.0
-    max_iters: int = 6
+    # Max model turns per run. 12, not the spec's 6: with one tool call per turn, a clean
+    # v1 run already takes ~6 turns (list_tables, 2x get_schema, dry_run, run_sql, reply),
+    # which would leave no budget for self-correction.
+    max_iters: int = 12
     timeout_s: int = 60
 
 

@@ -10,8 +10,15 @@ The reference agent-under-test is a **LangGraph text-to-SQL agent** over a local
 the Northwind database (a food import/export company: customers, orders, products, suppliers,
 employees). It sits behind an `Agent` Protocol, so any agent can be swapped in.
 
-> **Status:** 🚧 Phases 0–1 complete (scaffold, Northwind DB + result canonicalization).
-> Results table lands after Phase 7.
+> **Status:** 🚧 Phases 0–2 complete (scaffold, Northwind DB + result canonicalization,
+> LangGraph text-to-SQL agent). Results table lands after Phase 7.
+
+Try the agent on one question (free and local via [Ollama](https://ollama.com), after
+`ollama pull llama3.1:8b`):
+
+```bash
+uv run python -m eval_harness.agent.text_to_sql "Which 5 customers placed the most orders?" --prompt v2
+```
 
 ## Architecture
 

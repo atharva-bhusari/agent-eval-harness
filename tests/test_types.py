@@ -58,7 +58,7 @@ def test_task_defaults():
 def test_config_defaults_are_deterministic():
     cfg = Config(id="baseline", model="openai/gpt-4o-mini", prompt_version="v1")
     assert cfg.temperature == 0.0
-    assert cfg.max_iters == 6
+    assert cfg.max_iters == 12
 
 
 def test_failure_taxonomy_matches_spec():

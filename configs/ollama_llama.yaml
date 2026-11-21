@@ -1,0 +1,8 @@
+# Local dev / CI-fallback config: free, offline, no API key. Not part of the A/B grid.
+# Longer timeout: on a 4GB GPU llama3.1:8b runs partly on CPU (~8s per model turn warm).
+id: ollama_llama
+model: ollama/llama3.1:8b   # litellm model id (routed to ollama_chat for tool calling)
+prompt_version: v1
+temperature: 0.0
+max_iters: 12
+timeout_s: 300

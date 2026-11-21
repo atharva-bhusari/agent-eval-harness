@@ -3,5 +3,5 @@ id: v2_prompt
 model: openai/gpt-4o-mini          # litellm model id
 prompt_version: v2
 temperature: 0.0
-max_iters: 6
+max_iters: 12
 timeout_s: 60

@@ -3,5 +3,5 @@ id: haiku
 model: anthropic/claude-haiku-5-5          # litellm model id
 prompt_version: v1
 temperature: 0.0
-max_iters: 6
+max_iters: 12
 timeout_s: 60
