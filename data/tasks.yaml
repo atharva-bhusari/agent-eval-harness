@@ -1,17 +1,688 @@
-# Golden task set (Phase 3 target: 50 tasks).
-# Schema per task:
-#   id:              unique string
-#   question:        natural-language question for the agent
-#   expected_result: list of rows (each row a list); SOURCE OF TRUTH for scoring
-#   expected_sql:    reference SQL used only by `verify-tasks`, never for scoring
-#   difficulty:      easy | medium | hard
-#   tags:            [aggregation, join, filter, ranking, subquery, ...]
-#   ordered:         true only for ranking questions where row order matters
+# Golden task set for the Northwind text-to-SQL agent.
+# expected_result is the SOURCE OF TRUTH for scoring (order-insensitive unless ordered: true).
+# expected_sql is reference-only: `make verify-tasks` re-runs it to prove the rows reproduce.
+# Add tasks without expected_result, then run `python -m eval_harness.golden snapshot`.
+version: 1
 tasks:
-  - id: example_001
-    question: How many product categories are there?
-    expected_result: [[8]]
-    expected_sql: SELECT COUNT(*) FROM categories
-    difficulty: easy
-    tags: [aggregation]
-    ordered: false
+
+- id: e01
+  difficulty: easy
+  tags: [aggregation]
+  ordered: false
+  question: How many customers are there?
+  expected_sql: SELECT COUNT(*) FROM customers
+  expected_result:
+  - [91]
+
+- id: e02
+  difficulty: easy
+  tags: [aggregation, date, filter]
+  ordered: false
+  question: How many orders were placed in 1997?
+  expected_sql: SELECT COUNT(*) FROM orders WHERE year(order_date) = 1997
+  expected_result:
+  - [408]
+
+- id: e03
+  difficulty: easy
+  tags: [aggregation, filter]
+  ordered: false
+  question: How many products are discontinued?
+  expected_sql: SELECT COUNT(*) FROM products WHERE discontinued = 1
+  expected_result:
+  - [10]
+
+- id: e04
+  difficulty: easy
+  tags: [filter]
+  ordered: false
+  question: List the company names of all shippers.
+  expected_sql: SELECT company_name FROM shippers
+  expected_result:
+  - [Speedy Express]
+  - [United Package]
+  - [Federal Shipping]
+  - [Alliance Shippers]
+  - [UPS]
+  - [DHL]
+
+- id: e05
+  difficulty: easy
+  tags: [filter]
+  ordered: false
+  question: Which countries are our suppliers located in? Return each country once.
+  expected_sql: SELECT DISTINCT country FROM suppliers
+  expected_result:
+  - [Spain]
+  - [UK]
+  - [Italy]
+  - [France]
+  - [Denmark]
+  - [Netherlands]
+  - [Sweden]
+  - [Brazil]
+  - [Germany]
+  - [Norway]
+  - [USA]
+  - [Japan]
+  - [Finland]
+  - [Canada]
+  - [Australia]
+  - [Singapore]
+
+- id: e06
+  difficulty: easy
+  tags: [ranking]
+  ordered: false
+  question: What is the name and unit price of the most expensive product?
+  expected_sql: SELECT product_name, unit_price FROM products ORDER BY unit_price DESC LIMIT 1
+  expected_result:
+  - [Côte de Blaye, 263.5]
+
+- id: e07
+  difficulty: easy
+  tags: [aggregation, filter]
+  ordered: false
+  question: How many employees have the job title 'Sales Representative'?
+  expected_sql: SELECT COUNT(*) FROM employees WHERE title = 'Sales Representative'
+  expected_result:
+  - [6]
+
+- id: e08
+  difficulty: easy
+  tags: [aggregation]
+  ordered: false
+  question: What is the average unit price across all products?
+  expected_sql: SELECT AVG(unit_price) FROM products
+  expected_result:
+  - [28.833896091428567]
+
+- id: e09
+  difficulty: easy
+  tags: [filter]
+  ordered: false
+  question: Which products have zero units in stock? Return the product names.
+  expected_sql: SELECT product_name FROM products WHERE units_in_stock = 0
+  expected_result:
+  - [Chef Anton's Gumbo Mix]
+  - [Alice Mutton]
+  - [Thüringer Rostbratwurst]
+  - [Gorgonzola Telino]
+  - [Perth Pasties]
+
+- id: e10
+  difficulty: easy
+  tags: [aggregation, filter]
+  ordered: false
+  question: How many customers are located in Germany?
+  expected_sql: SELECT COUNT(*) FROM customers WHERE country = 'Germany'
+  expected_result:
+  - [11]
+
+- id: e11
+  difficulty: easy
+  tags: [aggregation]
+  ordered: false
+  question: What is the total freight cost across all orders?
+  expected_sql: SELECT SUM(freight) FROM orders
+  expected_result:
+  - [64942.690044099574]
+
+- id: e12
+  difficulty: easy
+  tags: [ranking, date]
+  ordered: false
+  question: Which employee was hired most recently? Return their first and last name.
+  expected_sql: SELECT first_name, last_name FROM employees ORDER BY hire_date DESC LIMIT 1
+  expected_result:
+  - [Anne, Dodsworth]
+
+- id: e13
+  difficulty: easy
+  tags: [aggregation]
+  ordered: false
+  question: How many distinct cities are our customers located in?
+  expected_sql: SELECT COUNT(DISTINCT city) FROM customers
+  expected_result:
+  - [69]
+
+- id: e14
+  difficulty: easy
+  tags: [filter]
+  ordered: false
+  question: List the first and last names of employees based in London.
+  expected_sql: SELECT first_name, last_name FROM employees WHERE city = 'London'
+  expected_result:
+  - [Steven, Buchanan]
+  - [Michael, Suyama]
+  - [Robert, King]
+  - [Anne, Dodsworth]
+
+- id: e15
+  difficulty: easy
+  tags: [filter, null_handling, aggregation]
+  ordered: false
+  question: How many orders have not been shipped yet?
+  expected_sql: SELECT COUNT(*) FROM orders WHERE shipped_date IS NULL
+  expected_result:
+  - [21]
+
+- id: m01
+  difficulty: medium
+  tags: [join, aggregation]
+  ordered: false
+  question: How many products are in each category? Return the category name and the number of products.
+  expected_sql: SELECT c.category_name, COUNT(*) FROM categories c JOIN products p USING (category_id)
+    GROUP BY 1
+  expected_result:
+  - [Seafood, 12]
+  - [Condiments, 12]
+  - [Dairy Products, 10]
+  - [Beverages, 12]
+  - [Meat/Poultry, 6]
+  - [Grains/Cereals, 7]
+  - [Confections, 13]
+  - [Produce, 5]
+
+- id: m02
+  difficulty: medium
+  tags: [join, filter]
+  ordered: false
+  question: List the names of products supplied by suppliers located in Japan.
+  expected_sql: SELECT p.product_name FROM products p JOIN suppliers s USING (supplier_id) WHERE s.country
+    = 'Japan'
+  expected_result:
+  - [Mishi Kobe Niku]
+  - [Ikura]
+  - [Konbu]
+  - [Tofu]
+  - [Genen Shouyu]
+  - [Longlife Tofu]
+
+- id: m03
+  difficulty: medium
+  tags: [join, aggregation, null_handling]
+  ordered: false
+  question: How many orders has each shipper shipped? Include every shipper, even those with no orders.
+    Return the shipper company name and the order count.
+  expected_sql: SELECT s.company_name, COUNT(o.order_id) FROM shippers s LEFT JOIN orders o ON o.ship_via
+    = s.shipper_id GROUP BY s.shipper_id, s.company_name
+  expected_result:
+  - [Federal Shipping, 255]
+  - [United Package, 326]
+  - [Speedy Express, 249]
+  - [DHL, 0]
+  - [UPS, 0]
+  - [Alliance Shippers, 0]
+
+- id: m04
+  difficulty: medium
+  tags: [join, aggregation, ranking]
+  ordered: false
+  question: Which 5 products have the highest total quantity ordered? Return the product name and total
+    quantity.
+  expected_sql: SELECT p.product_name, SUM(od.quantity) FROM order_details od JOIN products p USING (product_id)
+    GROUP BY p.product_id, p.product_name ORDER BY 2 DESC LIMIT 5
+  expected_result:
+  - [Camembert Pierrot, 1577]
+  - [Raclette Courdavault, 1496]
+  - [Gorgonzola Telino, 1397]
+  - [Gnocchi di nonna Alice, 1263]
+  - [Pavlova, 1158]
+
+- id: m05
+  difficulty: medium
+  tags: [aggregation, date, join]
+  ordered: false
+  question: What was the total revenue from orders placed in 1997? Revenue is order-line unit price times
+    quantity times (1 - discount).
+  expected_sql: SELECT SUM(od.unit_price * od.quantity * (1 - od.discount)) FROM order_details od JOIN
+    orders o USING (order_id) WHERE year(o.order_date) = 1997
+  expected_result:
+  - [617085.2023786786]
+
+- id: m06
+  difficulty: medium
+  tags: [join, aggregation]
+  ordered: false
+  question: How many orders has each employee handled? Return the employee's first name, last name, and
+    order count.
+  expected_sql: SELECT e.first_name, e.last_name, COUNT(*) FROM employees e JOIN orders o USING (employee_id)
+    GROUP BY e.employee_id, e.first_name, e.last_name
+  expected_result:
+  - [Nancy, Davolio, 123]
+  - [Janet, Leverling, 127]
+  - [Laura, Callahan, 104]
+  - [Robert, King, 72]
+  - [Anne, Dodsworth, 43]
+  - [Margaret, Peacock, 156]
+  - [Andrew, Fuller, 96]
+  - [Steven, Buchanan, 42]
+  - [Michael, Suyama, 67]
+
+- id: m07
+  difficulty: medium
+  tags: [subquery, null_handling]
+  ordered: false
+  question: Which customers have never placed an order? Return their company names.
+  expected_sql: SELECT company_name FROM customers c WHERE NOT EXISTS (SELECT 1 FROM orders o WHERE o.customer_id
+    = c.customer_id)
+  expected_result:
+  - [Paris spécialités]
+  - [FISSA Fabrica Inter. Salchichas S.A.]
+
+- id: m08
+  difficulty: medium
+  tags: [aggregation, having]
+  ordered: false
+  question: For each ship country with more than 50 orders, what is the average freight per order? Return
+    the country and the average freight.
+  expected_sql: SELECT ship_country, AVG(freight) FROM orders GROUP BY 1 HAVING COUNT(*) > 50
+  expected_result:
+  - [USA, 112.87942658734427]
+  - [Germany, 92.48590170575413]
+  - [Brazil, 58.79747046209636]
+  - [France, 55.036883258215575]
+  - [UK, 52.754821136178585]
+
+- id: m09
+  difficulty: medium
+  tags: [join, aggregation, having]
+  ordered: false
+  question: Which categories have an average product unit price above 30? Return the category name and
+    the average unit price.
+  expected_sql: SELECT c.category_name, AVG(p.unit_price) FROM categories c JOIN products p USING (category_id)
+    GROUP BY 1 HAVING AVG(p.unit_price) > 30
+  expected_result:
+  - [Beverages, 37.979166666666664]
+  - [Meat/Poultry, 54.00666666833334]
+  - [Produce, 32.3699997]
+
+- id: m10
+  difficulty: medium
+  tags: [filter]
+  ordered: false
+  question: Which products have fewer units in stock than their reorder level? Return the product name,
+    units in stock, and reorder level.
+  expected_sql: SELECT product_name, units_in_stock, reorder_level FROM products WHERE units_in_stock
+    < reorder_level
+  expected_result:
+  - [Chang, 17, 25]
+  - [Aniseed Syrup, 13, 25]
+  - [Queso Cabrales, 22, 30]
+  - [Sir Rodney's Scones, 3, 5]
+  - [Nord-Ost Matjeshering, 10, 15]
+  - [Gorgonzola Telino, 0, 20]
+  - [Mascarpone Fabioli, 9, 25]
+  - [Gravad lax, 11, 25]
+  - [Ipoh Coffee, 17, 25]
+  - [Rogede sild, 5, 15]
+  - [Chocolade, 15, 25]
+  - [Maxilaku, 10, 15]
+  - [Gnocchi di nonna Alice, 21, 30]
+  - [Wimmers gute Semmelknödel, 22, 30]
+  - [Louisiana Hot Spiced Okra, 4, 20]
+  - [Scottish Longbreads, 6, 15]
+  - [Outback Lager, 15, 30]
+  - [Longlife Tofu, 4, 5]
+
+- id: m11
+  difficulty: medium
+  tags: [date, aggregation]
+  ordered: true
+  question: How many orders were placed in each month of 1997? Return the month number and order count,
+    sorted by month.
+  expected_sql: SELECT month(order_date), COUNT(*) FROM orders WHERE year(order_date) = 1997 GROUP BY
+    1 ORDER BY 1
+  expected_result:
+  - [1, 33]
+  - [2, 29]
+  - [3, 30]
+  - [4, 31]
+  - [5, 32]
+  - [6, 30]
+  - [7, 33]
+  - [8, 33]
+  - [9, 37]
+  - [10, 38]
+  - [11, 34]
+  - [12, 48]
+
+- id: m12
+  difficulty: medium
+  tags: [join, aggregation, ranking]
+  ordered: false
+  question: Which customer placed the most orders? Return the company name and the number of orders.
+  expected_sql: SELECT c.company_name, COUNT(*) FROM orders o JOIN customers c USING (customer_id) GROUP
+    BY c.customer_id, c.company_name ORDER BY 2 DESC LIMIT 1
+  expected_result:
+  - [Save-a-lot Markets, 31]
+
+- id: m13
+  difficulty: medium
+  tags: [join, aggregation, ranking]
+  ordered: false
+  question: Which 5 customer countries generated the most revenue? Use the customer's country. Return
+    the country and revenue. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT c.country, SUM(od.unit_price * od.quantity * (1 - od.discount)) FROM order_details
+    od JOIN orders o USING (order_id) JOIN customers c USING (customer_id) GROUP BY 1 ORDER BY 2 DESC
+    LIMIT 5
+  expected_result:
+  - [USA, 245584.6103036077]
+  - [Germany, 230284.63324579012]
+  - [Austria, 128003.83815123167]
+  - [Brazil, 106925.77640099771]
+  - [France, 81358.32251829877]
+
+- id: m14
+  difficulty: medium
+  tags: [join, aggregation, having]
+  ordered: false
+  question: Which suppliers provide more than 3 products? Return the supplier company name and the number
+    of products.
+  expected_sql: SELECT s.company_name, COUNT(*) FROM suppliers s JOIN products p USING (supplier_id) GROUP
+    BY s.supplier_id, s.company_name HAVING COUNT(*) > 3
+  expected_result:
+  - ['Specialty Biscuits, Ltd.', 5]
+  - ['Pavlova, Ltd.', 5]
+  - [Plutzer Lebensmittelgroßmärkte AG, 5]
+  - [New Orleans Cajun Delights, 4]
+
+- id: m15
+  difficulty: medium
+  tags: [self_join]
+  ordered: false
+  question: For each employee who has a manager, return the employee's first and last name and their manager's
+    first and last name.
+  expected_sql: SELECT e.first_name, e.last_name, m.first_name, m.last_name FROM employees e JOIN employees
+    m ON e.reports_to = m.employee_id
+  expected_result:
+  - [Nancy, Davolio, Andrew, Fuller]
+  - [Janet, Leverling, Andrew, Fuller]
+  - [Margaret, Peacock, Andrew, Fuller]
+  - [Steven, Buchanan, Andrew, Fuller]
+  - [Michael, Suyama, Steven, Buchanan]
+  - [Robert, King, Steven, Buchanan]
+  - [Laura, Callahan, Andrew, Fuller]
+  - [Anne, Dodsworth, Steven, Buchanan]
+
+- id: m16
+  difficulty: medium
+  tags: [date, filter, aggregation]
+  ordered: false
+  question: How many orders were shipped after their required date?
+  expected_sql: SELECT COUNT(*) FROM orders WHERE shipped_date > required_date
+  expected_result:
+  - [37]
+
+- id: m17
+  difficulty: medium
+  tags: [date, aggregation]
+  ordered: false
+  question: On average, how many days passed between the order date and the shipped date, for orders that
+    have shipped?
+  expected_sql: SELECT AVG(shipped_date - order_date) FROM orders WHERE shipped_date IS NOT NULL
+  expected_result:
+  - [8.491965389369591]
+
+- id: m18
+  difficulty: medium
+  tags: [join, filter]
+  ordered: false
+  question: Which products in the Beverages category have a unit price above 20? Return the product name
+    and unit price.
+  expected_sql: SELECT p.product_name, p.unit_price FROM products p JOIN categories c USING (category_id)
+    WHERE c.category_name = 'Beverages' AND p.unit_price > 20
+  expected_result:
+  - [Côte de Blaye, 263.5]
+  - [Ipoh Coffee, 46.0]
+
+- id: m19
+  difficulty: medium
+  tags: [join, aggregation]
+  ordered: false
+  question: How many distinct products has the customer Alfreds Futterkiste ordered?
+  expected_sql: SELECT COUNT(DISTINCT od.product_id) FROM order_details od JOIN orders o USING (order_id)
+    JOIN customers c USING (customer_id) WHERE c.company_name = 'Alfreds Futterkiste'
+  expected_result:
+  - [11]
+
+- id: m20
+  difficulty: medium
+  tags: [aggregation]
+  ordered: false
+  question: What is the total discount amount given across all order lines? The discount amount of a line
+    is unit price times quantity times discount.
+  expected_sql: SELECT SUM(unit_price * quantity * discount) FROM order_details
+  expected_result:
+  - [88665.55173890114]
+
+- id: h01
+  difficulty: hard
+  tags: [join, window, ranking]
+  ordered: false
+  question: For each category, which product generated the most revenue? Return the category name, product
+    name, and that product's revenue. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT category_name, product_name, revenue FROM (SELECT c.category_name, p.product_name,
+    SUM(od.unit_price * od.quantity * (1 - od.discount)) AS revenue, RANK() OVER (PARTITION BY c.category_id
+    ORDER BY SUM(od.unit_price * od.quantity * (1 - od.discount)) DESC) AS rk FROM order_details od JOIN
+    products p USING (product_id) JOIN categories c USING (category_id) GROUP BY c.category_id, c.category_name,
+    p.product_id, p.product_name) WHERE rk = 1
+  expected_result:
+  - [Grains/Cereals, Gnocchi di nonna Alice, 42593.05981617803]
+  - [Dairy Products, Raclette Courdavault, 71155.6999107537]
+  - [Produce, Manjimup Dried Apples, 41819.6502413639]
+  - [Condiments, Vegie-spread, 16701.0950462546]
+  - [Beverages, Côte de Blaye, 141396.73561871625]
+  - [Confections, Tarte au sucre, 47234.96994623179]
+  - [Meat/Poultry, Thüringer Rostbratwurst, 80368.67248360773]
+  - [Seafood, Carnarvon Tigers, 29171.8749649875]
+
+- id: h02
+  difficulty: hard
+  tags: [join, date, ranking]
+  ordered: false
+  question: Which employee generated the most revenue from orders placed in 1997? Return their first name,
+    last name, and revenue. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT e.first_name, e.last_name, SUM(od.unit_price * od.quantity * (1 - od.discount))
+    FROM order_details od JOIN orders o USING (order_id) JOIN employees e USING (employee_id) WHERE year(o.order_date)
+    = 1997 GROUP BY e.employee_id, e.first_name, e.last_name ORDER BY 3 DESC LIMIT 1
+  expected_result:
+  - [Margaret, Peacock, 128809.790776125]
+
+- id: h03
+  difficulty: hard
+  tags: [aggregation, date]
+  ordered: false
+  question: What percentage of shipped orders were shipped after their required date? Round to 2 decimal
+    places.
+  expected_sql: SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE shipped_date > required_date) / COUNT(*),
+    2) FROM orders WHERE shipped_date IS NOT NULL
+  expected_result:
+  - [4.57]
+
+- id: h04
+  difficulty: hard
+  tags: [join, aggregation, ranking]
+  ordered: false
+  question: Who are the top 3 customers by total revenue? Return the company name and revenue. Revenue
+    is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT c.company_name, SUM(od.unit_price * od.quantity * (1 - od.discount)) FROM order_details
+    od JOIN orders o USING (order_id) JOIN customers c USING (customer_id) GROUP BY c.customer_id, c.company_name
+    ORDER BY 2 DESC LIMIT 3
+  expected_result:
+  - [QUICK-Stop, 110277.30502749435]
+  - [Ernst Handel, 104874.97814211302]
+  - [Save-a-lot Markets, 104361.94953946582]
+
+- id: h05
+  difficulty: hard
+  tags: [join, aggregation, having]
+  ordered: false
+  question: Which products were ordered by more than 30 different customers? Return the product name and
+    the number of distinct customers.
+  expected_sql: SELECT p.product_name, COUNT(DISTINCT o.customer_id) FROM order_details od JOIN orders
+    o USING (order_id) JOIN products p USING (product_id) GROUP BY p.product_id, p.product_name HAVING
+    COUNT(DISTINCT o.customer_id) > 30
+  expected_result:
+  - [Gorgonzola Telino, 34]
+  - [Rhönbräu Klosterbier, 33]
+  - [Camembert Pierrot, 36]
+  - [Tarte au sucre, 33]
+  - [Gnocchi di nonna Alice, 34]
+  - [Raclette Courdavault, 43]
+  - [Lakkalikööri, 33]
+  - [Guaraná Fantástica, 34]
+  - [Jack's New England Clam Chowder, 34]
+  - [Pavlova, 31]
+  - [Chai, 31]
+  - [Manjimup Dried Apples, 32]
+  - [Queso Cabrales, 32]
+  - [Mozzarella di Giovanni, 33]
+
+- id: h06
+  difficulty: hard
+  tags: [date, aggregation, ranking]
+  ordered: false
+  question: In which month of 1997 was revenue highest (by order date)? Return the month number and the
+    revenue. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT month(o.order_date), SUM(od.unit_price * od.quantity * (1 - od.discount)) FROM
+    order_details od JOIN orders o USING (order_id) WHERE year(o.order_date) = 1997 GROUP BY 1 ORDER BY
+    2 DESC LIMIT 1
+  expected_result:
+  - [12, 71398.42846920025]
+
+- id: h07
+  difficulty: hard
+  tags: [subquery, aggregation]
+  ordered: false
+  question: How many customers have a total revenue above the average total revenue per customer (among
+    customers who placed orders)? Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: WITH r AS (SELECT o.customer_id, SUM(od.unit_price * od.quantity * (1 - od.discount))
+    AS rev FROM order_details od JOIN orders o USING (order_id) GROUP BY 1) SELECT COUNT(*) FROM r WHERE
+    rev > (SELECT AVG(rev) FROM r)
+  expected_result:
+  - [30]
+
+- id: h08
+  difficulty: hard
+  tags: [date, aggregation, join]
+  ordered: true
+  question: For each year, how many orders were placed and what was the total revenue? Return the year,
+    order count, and revenue, sorted by year. Revenue is order-line unit price times quantity times (1
+    - discount).
+  expected_sql: SELECT year(o.order_date), COUNT(DISTINCT o.order_id), SUM(od.unit_price * od.quantity
+    * (1 - od.discount)) FROM orders o JOIN order_details od USING (order_id) GROUP BY 1 ORDER BY 1
+  expected_result:
+  - [1996, 152, 208083.97098011136]
+  - [1997, 408, 617085.2023786786]
+  - [1998, 270, 440623.8652914086]
+
+- id: h09
+  difficulty: hard
+  tags: [join, aggregation, having]
+  ordered: false
+  question: Which suppliers provide products in more than one category? Return the supplier company name
+    and the number of distinct categories.
+  expected_sql: SELECT s.company_name, COUNT(DISTINCT p.category_id) FROM suppliers s JOIN products p
+    USING (supplier_id) GROUP BY s.supplier_id, s.company_name HAVING COUNT(DISTINCT p.category_id) >
+    1
+  expected_result:
+  - ['G''day, Mate', 3]
+  - [Plutzer Lebensmittelgroßmärkte AG, 5]
+  - [Karkki Oy, 2]
+  - ['Pavlova, Ltd.', 5]
+  - [Mayumi's, 3]
+  - [Leka Trading, 3]
+  - [Exotic Liquids, 2]
+  - [Tokyo Traders, 3]
+  - ['Specialty Biscuits, Ltd.', 2]
+  - [Grandma Kelly's Homestead, 2]
+  - [Forêts d'érables, 2]
+
+- id: h10
+  difficulty: hard
+  tags: [join, aggregation]
+  ordered: false
+  question: For each employee, how many distinct countries have their orders been shipped to? Return the
+    first name, last name, and number of countries.
+  expected_sql: SELECT e.first_name, e.last_name, COUNT(DISTINCT o.ship_country) FROM employees e JOIN
+    orders o USING (employee_id) GROUP BY e.employee_id, e.first_name, e.last_name
+  expected_result:
+  - [Margaret, Peacock, 20]
+  - [Andrew, Fuller, 18]
+  - [Nancy, Davolio, 21]
+  - [Anne, Dodsworth, 17]
+  - [Michael, Suyama, 17]
+  - [Steven, Buchanan, 15]
+  - [Janet, Leverling, 20]
+  - [Robert, King, 20]
+  - [Laura, Callahan, 19]
+
+- id: h11
+  difficulty: hard
+  tags: [join, aggregation, ranking]
+  ordered: false
+  question: Which sales region has the most employees assigned to its territories? Return the region description
+    and the number of distinct employees.
+  expected_sql: SELECT r.region_description, COUNT(DISTINCT et.employee_id) FROM region r JOIN territories
+    t USING (region_id) JOIN employee_territories et USING (territory_id) GROUP BY r.region_id, r.region_description
+    ORDER BY 2 DESC LIMIT 1
+  expected_result:
+  - [Eastern, 4]
+
+- id: h12
+  difficulty: hard
+  tags: [window, date]
+  ordered: true
+  question: What was the cumulative number of orders at the end of each month of 1997? Return the month
+    number and the running total, sorted by month.
+  expected_sql: SELECT m, SUM(n) OVER (ORDER BY m) FROM (SELECT month(order_date) AS m, COUNT(*) AS n
+    FROM orders WHERE year(order_date) = 1997 GROUP BY 1) ORDER BY m
+  expected_result:
+  - [1, 33]
+  - [2, 62]
+  - [3, 92]
+  - [4, 123]
+  - [5, 155]
+  - [6, 185]
+  - [7, 218]
+  - [8, 251]
+  - [9, 288]
+  - [10, 326]
+  - [11, 360]
+  - [12, 408]
+
+- id: h13
+  difficulty: hard
+  tags: [subquery]
+  ordered: false
+  question: How many products have a unit price above the average unit price of their own category?
+  expected_sql: SELECT COUNT(*) FROM products p WHERE p.unit_price > (SELECT AVG(p2.unit_price) FROM products
+    p2 WHERE p2.category_id = p.category_id)
+  expected_result:
+  - [27]
+
+- id: h14
+  difficulty: hard
+  tags: [join, aggregation, ranking]
+  ordered: false
+  question: Which single order had the highest revenue? Return the order id, the customer's company name,
+    and the order revenue. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT o.order_id, c.company_name, SUM(od.unit_price * od.quantity * (1 - od.discount))
+    FROM order_details od JOIN orders o USING (order_id) JOIN customers c USING (customer_id) GROUP BY
+    o.order_id, c.company_name ORDER BY 3 DESC LIMIT 1
+  expected_result:
+  - [10865, QUICK-Stop, 16387.499987925]
+
+- id: h15
+  difficulty: hard
+  tags: [subquery, aggregation, ranking]
+  ordered: false
+  question: What percentage of total revenue comes from the top 10 products by revenue? Round to 1 decimal
+    place. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: WITH r AS (SELECT product_id, SUM(od.unit_price * od.quantity * (1 - od.discount)) AS
+    rev FROM order_details od GROUP BY 1) SELECT ROUND(100.0 * (SELECT SUM(rev) FROM (SELECT rev FROM
+    r ORDER BY rev DESC LIMIT 10)) / (SELECT SUM(rev) FROM r), 1)
+  expected_result:
+  - [44.2]

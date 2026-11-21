@@ -10,8 +10,8 @@ The reference agent-under-test is a **LangGraph text-to-SQL agent** over a local
 the Northwind database (a food import/export company: customers, orders, products, suppliers,
 employees). It sits behind an `Agent` Protocol, so any agent can be swapped in.
 
-> **Status:** 🚧 Phases 0–2 complete (scaffold, Northwind DB + result canonicalization,
-> LangGraph text-to-SQL agent). Results table lands after Phase 7.
+> **Status:** 🚧 Phases 0–3 complete (scaffold, Northwind DB + result canonicalization,
+> LangGraph text-to-SQL agent, 50-task verified golden set). Results table lands after Phase 7.
 
 Try the agent on one question (free and local via [Ollama](https://ollama.com), after
 `ollama pull llama3.1:8b`):
@@ -51,7 +51,7 @@ make lint        # or: uv run python tasks.py lint
 |---|---|---|
 | `setup` | install dependencies | 0 ✅ |
 | `db` | download the pinned Northwind dump and build `data/northwind.duckdb` | 1 ✅ |
-| `verify-tasks` | check every golden task's reference SQL reproduces its expected rows | 3 |
+| `verify-tasks` | check every golden task's reference SQL reproduces its expected rows (50/50) | 3 ✅ |
 | `eval CONFIG=…` | run all tasks for one config | 4 |
 | `report` / `dashboard` | Markdown table / Streamlit app | 6 |
 | `sweep` | run the 2×2 A/B grid and regenerate the report | 7 |

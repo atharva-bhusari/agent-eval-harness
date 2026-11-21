@@ -20,6 +20,8 @@ jobs:
           uv run ruff format --check .
       - name: Build Northwind DB
         run: uv run python -m eval_harness.db build
+      - name: Verify golden tasks
+        run: uv run python -m eval_harness.golden verify
       - name: Unit + integration tests
         run: uv run pytest
       # Phase 8: 5-task smoke eval on a mocked LLM so CI never needs a paid key.
