@@ -19,28 +19,37 @@ employees). It sits behind a one-method `Agent` Protocol, so any agent can be ev
 Execution accuracy on the 50-task golden set (95% Wilson interval). Source:
 [results/REPORT.md](results/REPORT.md), generated from the metrics store.
 
-| config | model | prompt | accuracy | mean latency | cost / run |
-|---|---|---|---:|---:|---:|
-| `gpt4o_mini_v2` | gpt-4o-mini | v2 | **92%** (81–97%) | 4.1 s | $0.0005 |
-| `gpt4o_mini_v1` | gpt-4o-mini | v1 | 90% (79–96%) | 5.7 s | $0.0006 |
-| `ollama_llama_v2` | llama3.1:8b (local) | v2 | 80% (67–89%) | 27.5 s | $0 |
-| `haiku_v1` / `haiku_v2` | Claude Haiku 5.5 | v1 / v2 | pending (needs an API key) | | |
+| config | model | prompt | accuracy | hard tasks | mean latency | cost / run |
+|---|---|---|---:|---:|---:|---:|
+| `haiku_v2` | Claude Haiku 5.5 | v2 | **100%** (93–100%) | 15/15 | **2.3 s** | $0.0009 |
+| `haiku_v1` | Claude Haiku 5.5 | v1 | **100%** (93–100%) | 15/15 | 4.0 s | $0.0009 |
+| `gpt4o_mini_v2` | gpt-4o-mini | v2 | 92% (81–97%) | 11/15 | 4.1 s | **$0.0005** |
+| `gpt4o_mini_v1` | gpt-4o-mini | v1 | 90% (79–96%) | 11/15 | 5.7 s | $0.0006 |
+| `ollama_llama_v2` | llama3.1:8b (local, extra) | v2 | 80% (67–89%) | 8/15 | 27.5 s | $0 |
 
-- **A prompt's value depends on the model.** v2 puts the schema in the prompt.
-  - **On gpt-4o-mini** it adds only +2 points: 2 tasks fixed, 1 broken, and a paired McNemar
-    p = 1.0 means no real difference. But each task is 28% faster and 17% cheaper, because the
-    model skips schema discovery (2.3 tool calls per task instead of 5.2).
-  - **On llama3.1:8b** it's the difference between working and not: without it, the model
-    invents column names.
-- **Model choice is a real difference.** gpt-4o-mini v2 beats local llama v2 by 12 points
-  (6 tasks to 0, p = 0.03), at about $0.0005 per question vs $0 and 7× lower latency.
-- **Hard tasks are the ceiling.** gpt-4o-mini scores 100% on easy tasks and 73% on hard ones.
-  The misses are real analyst mistakes, and different models make the same ones:
-  - counting order lines instead of orders after a join (below);
-  - swapping `DATEDIFF`'s arguments;
-  - returning the top product overall instead of the top product per category.
-- Both gpt-4o-mini configs (100 runs) cost about **$0.06** in total. Re-runs are served from
-  the response cache at $0.
+- **Claude Haiku 5.5 aced the golden set** on both prompts (50/50). The whole gap with
+  gpt-4o-mini is on hard tasks (100% vs 73%), where gpt-4o-mini makes real analyst mistakes that
+  Haiku avoids:
+  - counting order lines instead of orders after a join; Haiku uses `COUNT(DISTINCT …)`
+    (gpt-4o-mini's version is shown below);
+  - returning the top product overall instead of the top product per category; Haiku uses a
+    `ROW_NUMBER() OVER (PARTITION BY …)` window;
+  - swapping `DATEDIFF`'s arguments.
+- **An 8–10 point lead is still not statistically significant here.** Only 4–5 tasks
+  separate the models, all won by Haiku (paired McNemar p = 0.06 and 0.13). On 50 tasks, that
+  is strong evidence but not proof. The report says so instead of declaring a winner by eye.
+- **The golden set has hit its ceiling.** A perfect score can't tell a better model apart,
+  so the next step is harder tasks, not more of the same.
+- **Price per token is not cost per task.** Haiku is cheaper per input token ($0.10 vs $0.15
+  per million), yet costs **1.7× more per run**, because it's billed for about 2.2× the prompt
+  tokens for conversations of the same length. Choose models on cost per correct answer
+  ($0.0009 vs $0.0006), not on list price.
+- **A prompt's value depends on the model.** v2 puts the schema in the prompt. It changes no
+  answers on Haiku or gpt-4o-mini (p = 1.0 on both), but it makes each task faster: 43% on
+  Haiku and 28% on gpt-4o-mini, because the model skips schema discovery. On local llama3.1:8b
+  it's what makes the agent work at all, since without it the model invents column names.
+- The full 2×2 sweep (200 runs) cost about **$0.15**. Re-runs are served from the response
+  cache at $0.
 
 ### Dashboard
 

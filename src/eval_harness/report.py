@@ -238,18 +238,25 @@ def summary_prose(summary: pd.DataFrame, pairs: pd.DataFrame) -> list[str]:
     ]
     if full.empty:
         lines[0] += " ⚠️ No config has run the full task set yet, so this is provisional."
-    if len(ranked) > 1:
-        r = ranked.iloc[1]
+    tied = ranked.iloc[1:][ranked.iloc[1:]["accuracy"] == w.accuracy]
+    if not tied.empty:
+        names = ", ".join(f"`{c}`" for c in tied["config_id"])
+        lines.append(f"It ties {names} on accuracy and ranks first on lower cost, then latency.")
+    behind = ranked[ranked["accuracy"] < w.accuracy]
+    if not behind.empty:
+        # Significance against the best config that actually scored lower (a tie has no
+        # lead to test).
+        r = behind.iloc[0]
         p = _pair(pairs, w.config_id, r.config_id)
         if p is not None and p.p_value < ALPHA:
             lines.append(
-                f"It is significantly ahead of the runner-up `{r.config_id}` "
+                f"It is significantly ahead of the best of the rest, `{r.config_id}` "
                 f"({_pct(r.accuracy)}; paired McNemar p = {p.p_value:.3f})."
             )
         elif p is not None:
             lines.append(
-                f"Its lead over the runner-up `{r.config_id}` ({_pct(r.accuracy)}) is **not "
-                f"statistically significant** (paired McNemar p = {p.p_value:.2f}): on "
+                f"Its lead over the best of the rest, `{r.config_id}` ({_pct(r.accuracy)}), "
+                f"is **not statistically significant** (paired McNemar p = {p.p_value:.2f}): on "
                 f"{p.n} tasks, treat them as tied on accuracy and choose on cost and latency."
             )
 

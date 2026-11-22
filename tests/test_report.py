@@ -293,3 +293,22 @@ def test_single_config_report_renders(tmp_path):
     assert pairs.empty and "kind" in pairs.columns
     md = report.render_markdown(df, n_tasks=2)
     assert "**Winner on accuracy: `only`**" in md and "## Head-to-head" not in md
+
+
+def test_summary_prose_handles_a_tie_at_the_top():
+    ts = [f"t{i}" for i in range(50)]
+    df = _df(
+        [
+            ("a", "m", "v1", {t: True for t in ts}),
+            ("b", "m", "v2", {t: True for t in ts}),
+            ("c", "n", "v1", {t: i < 45 for i, t in enumerate(ts)}),
+        ]
+    )
+    df.loc[df.config_id == "b", "cost_usd"] = 0.0005  # b wins the tie on cost
+    text = "\n".join(
+        report.summary_prose(report.config_summary(df, 50), report.paired_comparisons(df))
+    )
+    assert "**Winner on accuracy: `b`**" in text
+    assert "It ties `a` on accuracy" in text
+    assert "best of the rest, `c`" in text  # significance tested against a real gap
+    assert "runner-up" not in text
