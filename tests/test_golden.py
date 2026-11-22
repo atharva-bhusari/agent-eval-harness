@@ -18,10 +18,15 @@ needs_db = pytest.mark.skipif(
 
 def test_golden_set_shape():
     tasks = golden.load_tasks()
-    assert len(tasks) == 50
+    assert len(tasks) == 62
     assert all(isinstance(t, Task) for t in tasks)
-    assert len({t.id for t in tasks}) == 50
-    assert Counter(t.difficulty for t in tasks) == {"easy": 15, "medium": 20, "hard": 15}
+    assert len({t.id for t in tasks}) == 62
+    assert Counter(t.difficulty for t in tasks) == {
+        "easy": 15,
+        "medium": 20,
+        "hard": 15,
+        "expert": 12,
+    }
     tags = {tag for t in tasks for tag in t.tags}
     assert {"aggregation", "join", "filter", "ranking", "subquery"} <= tags  # spec coverage
     assert tags <= golden.KNOWN_TAGS

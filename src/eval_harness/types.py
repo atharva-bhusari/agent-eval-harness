@@ -28,7 +28,7 @@ FAILURE_CATEGORIES: tuple[str, ...] = (
     "other",  # none of the above
 )
 
-DIFFICULTIES: tuple[str, ...] = ("easy", "medium", "hard")
+DIFFICULTIES: tuple[str, ...] = ("easy", "medium", "hard", "expert")
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class Task:
     question: str
     expected_result: list[tuple]  # canonical rows; source of truth for scoring
     expected_sql: str | None = None  # reference only, NOT used for scoring
-    difficulty: str = "medium"  # easy | medium | hard
+    difficulty: str = "medium"  # easy | medium | hard | expert
     tags: list[str] = field(default_factory=list)
     ordered: bool = False  # True for ranking questions where row order matters
 

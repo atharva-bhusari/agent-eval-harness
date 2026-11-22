@@ -58,19 +58,19 @@ def store(tmp_path):
 # Full golden set through the real agent
 # --------------------------------------------------------------------------------------
 @needs_db
-def test_oracle_scores_50_of_50_concurrently_and_rerun_is_idempotent(store):
+def test_oracle_scores_every_task_concurrently_and_rerun_is_idempotent(store):
     tasks = golden.load_tasks()
     agent = TextToSQLAgent(OracleLLM(tasks))
     cfg = config(concurrency=5)
 
     first = run(cfg, tasks, store, agent)
-    assert first.n == 50
+    assert first.n == len(tasks)
     assert first.accuracy == 1.0, [r.task_id for r in first.records if not r.success]
-    assert store.count("test_cfg") == 50
+    assert store.count("test_cfg") == len(tasks)
 
     second = run(cfg, tasks, store, agent)  # re-run: overwrite, never duplicate
-    assert second.n == 50
-    assert store.count("test_cfg") == 50
+    assert second.n == len(tasks)
+    assert store.count("test_cfg") == len(tasks)
 
 
 @needs_db

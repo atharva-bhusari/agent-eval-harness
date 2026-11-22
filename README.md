@@ -16,39 +16,46 @@ employees). It sits behind a one-method `Agent` Protocol, so any agent can be ev
 
 ## Results
 
-Execution accuracy on the 50-task golden set (95% Wilson interval). Source:
+Execution accuracy on the 62-task golden set (95% Wilson interval). Source:
 [results/REPORT.md](results/REPORT.md), generated from the metrics store.
 
-| config | model | prompt | accuracy | hard tasks | mean latency | cost / run |
-|---|---|---|---:|---:|---:|---:|
-| `haiku_v2` | Claude Haiku 5.5 | v2 | **100%** (93–100%) | 15/15 | **2.3 s** | $0.0009 |
-| `haiku_v1` | Claude Haiku 5.5 | v1 | **100%** (93–100%) | 15/15 | 4.0 s | $0.0009 |
-| `gpt4o_mini_v2` | gpt-4o-mini | v2 | 92% (81–97%) | 11/15 | 4.1 s | **$0.0005** |
-| `gpt4o_mini_v1` | gpt-4o-mini | v1 | 90% (79–96%) | 11/15 | 5.7 s | $0.0006 |
-| `ollama_llama_v2` | llama3.1:8b (local, extra) | v2 | 80% (67–89%) | 8/15 | 27.5 s | $0 |
+| config | model | prompt | accuracy | hard | expert | mean latency | cost / run |
+|---|---|---|---:|---:|---:|---:|---:|
+| `haiku_v2` | Claude Haiku 5.5 | v2 | **100%** (94–100%) | 15/15 | 12/12 | **2.6 s** | $0.0009 |
+| `haiku_v1` | Claude Haiku 5.5 | v1 | **100%** (94–100%) | 15/15 | 12/12 | 4.2 s | $0.0010 |
+| `gpt4o_mini_v2` | gpt-4o-mini | v2 | 82% (71–90%) | 11/15 | 5/12 | 6.4 s | **$0.0006** |
+| `gpt4o_mini_v1` | gpt-4o-mini | v1 | 81% (69–89%) | 11/15 | 5/12 | 7.6 s | $0.0006 |
+| `ollama_llama_v2` | llama3.1:8b (local, extra) | v2 | 80% (67–89%)\* | 8/15 | not run | 27.5 s | $0 |
 
-- **Claude Haiku 5.5 aced the golden set** on both prompts (50/50). The whole gap with
-  gpt-4o-mini is on hard tasks (100% vs 73%), where gpt-4o-mini makes real analyst mistakes that
-  Haiku avoids:
+\* On the original 50 tasks only; the local model hasn't been run on the expert tier.
+
+- **Claude Haiku 5.5 got every task right** on both prompts (62/62). gpt-4o-mini matches it on
+  easy and medium tasks, then falls to 73% on hard and **42% on expert**, making real analyst
+  mistakes that Haiku avoids:
   - counting order lines instead of orders after a join; Haiku uses `COUNT(DISTINCT …)`
     (gpt-4o-mini's version is shown below);
-  - returning the top product overall instead of the top product per category; Haiku uses a
-    `ROW_NUMBER() OVER (PARTITION BY …)` window;
-  - swapping `DATEDIFF`'s arguments.
-- **An 8–10 point lead is still not statistically significant here.** Only 4–5 tasks
-  separate the models, all won by Haiku (paired McNemar p = 0.06 and 0.13). On 50 tasks, that
-  is strong evidence but not proof. The report says so instead of declaring a winner by eye.
-- **The golden set has hit its ceiling.** A perfect score can't tell a better model apart,
-  so the next step is harder tasks, not more of the same.
+  - filtering rows *before* aggregating: `WHERE discontinued = 1` drops an order's other lines,
+    so "orders containing a discontinued product worth over 2000" sums the wrong thing;
+  - `COUNT(…) … GROUP BY customer` when one total was asked for (36 rows of `1`);
+  - `AVG` where the question asks for the median;
+  - returning the top product overall instead of the top product per category.
+- **The gap is now statistically significant.** On the first 50 tasks, only 4–5 tasks
+  separated the models (paired McNemar p = 0.06 and 0.13), so the report called it "not
+  significant". The 12 expert tasks, written to target common SQL mistakes, widened that to
+  11–12 tasks, all won by Haiku (p ≤ 0.001). Harder tasks gave more statistical power than
+  more easy ones would have.
+- **The set still can't rank anything stronger than Haiku.** It scores 100% even on the expert
+  tier, so comparing it with a bigger model needs harder tasks again.
 - **Price per token is not cost per task.** Haiku is cheaper per input token ($0.10 vs $0.15
-  per million), yet costs **1.7× more per run**, because it's billed for about 2.2× the prompt
-  tokens for conversations of the same length. Choose models on cost per correct answer
-  ($0.0009 vs $0.0006), not on list price.
+  per million), yet costs **1.6–1.7× more per run**, because it's billed for about 2.2× the
+  prompt tokens for conversations of the same length. Cost per correct answer is closer
+  ($0.0009 vs $0.0007), because Haiku gets more right.
 - **A prompt's value depends on the model.** v2 puts the schema in the prompt. It changes no
-  answers on Haiku or gpt-4o-mini (p = 1.0 on both), but it makes each task faster: 43% on
-  Haiku and 28% on gpt-4o-mini, because the model skips schema discovery. On local llama3.1:8b
-  it's what makes the agent work at all, since without it the model invents column names.
-- The full 2×2 sweep (200 runs) cost about **$0.15**. Re-runs are served from the response
+  answers on Haiku and isn't significant on gpt-4o-mini (+2 points, p = 1.0), but it makes each
+  task faster: 38% on Haiku and 16% on gpt-4o-mini, because the model skips schema discovery.
+  On local llama3.1:8b it's what makes the agent work at all, since without it the model invents
+  column names.
+- The full 2×2 sweep (248 runs) cost about **$0.19**. Re-runs are served from the response
   cache at $0.
 
 ### Dashboard
@@ -69,7 +76,7 @@ tool calls and the full transcript. Here gpt-4o-mini gets revenue exactly right,
  configs/*.yaml ──┐            (model × prompt, limits)
                   ▼
  tasks.yaml ──► RUNNER  async · timeout · retry/backoff · LLM response cache
- (50 verified)    │  ▲
+ (62 verified)    │  ▲
                   ▼  │ tools: list_tables · get_schema · dry_run · run_sql (read-only)
           AGENT UNDER TEST  (LangGraph text-to-SQL, self-correcting) ──► DuckDB (Northwind)
                   │
@@ -82,8 +89,8 @@ tool calls and the full transcript. Here gpt-4o-mini gets revenue exactly right,
                   └──► Streamlit dashboard (charts, task grid, drill-down)
 ```
 
-- **Golden set** ([data/tasks.yaml](data/tasks.yaml)): 50 questions (15 easy / 20 medium /
-  15 hard). Each has reference SQL and a snapshotted expected result. `make verify-tasks` checks
+- **Golden set** ([data/tasks.yaml](data/tasks.yaml)): 62 questions (15 easy / 20 medium /
+  15 hard / 12 expert). Each has reference SQL and a snapshotted expected result. `make verify-tasks` checks
   in CI that every reference query still reproduces its rows.
 - **Execution accuracy:** rows are compared as a multiset, so row order doesn't count unless
   the question asks for it. Floats are rounded to 4 dp, NULL/NaN and dates are normalized, and
@@ -114,7 +121,7 @@ Run real evals. Hosted models need keys in `.env` (copy `.env.example`); local m
 [Ollama](https://ollama.com) (`ollama pull llama3.1:8b`).
 
 ```bash
-make eval CONFIG=configs/gpt4o_mini_v2.yaml       # one config, 50 tasks
+make eval CONFIG=configs/gpt4o_mini_v2.yaml       # one config, 62 tasks
 make sweep ARGS="--max-usd 1"                     # the model × prompt grid + REPORT.md
 make sweep GRID=configs/sweeps/local.yaml         # free, offline prompt A/B (slow)
 make dashboard                                    # http://localhost:8501
@@ -130,7 +137,7 @@ uv run python -m eval_harness.agent.text_to_sql "Which 5 customers placed the mo
 |---|---|
 | `setup` | install dependencies |
 | `db` | download the pinned Northwind dump and build `data/northwind.duckdb` |
-| `verify-tasks` | check every golden task's reference SQL reproduces its expected rows (50/50) |
+| `verify-tasks` | check every golden task's reference SQL reproduces its expected rows (62/62) |
 | `eval CONFIG=…` | run all tasks for one config (`--tasks`, `--limit`, `--resume`) |
 | `sweep` | run a grid (`configs/sweeps/`), skip configs without an API key, cap spend with `--max-usd`, regenerate `results/REPORT.md` |
 | `report` | write `results/REPORT.md` from the store (`--configs a,b`) |
@@ -170,7 +177,7 @@ CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs on every push and
 a paid API key**:
 - ruff lint and format checks;
 - build the database from the pinned dump;
-- verify the 50 golden tasks;
+- verify the 62 golden tasks;
 - the full test suite: agent loop, scorer, classifier against real DuckDB error messages,
   store, runner, report statistics, and the dashboard rendered headless with Streamlit's
   `AppTest`;

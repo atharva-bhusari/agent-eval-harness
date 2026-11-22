@@ -337,7 +337,7 @@ def render_markdown(df: pd.DataFrame, n_tasks: int, title: str = "Eval report") 
     out += [
         f"{len(summary)} config(s), {len(df)} runs, golden set of {n_tasks} tasks. "
         "Accuracy = execution accuracy (the agent's result set equals the expected rows). "
-        "The interval is a 95% Wilson interval: with ~50 tasks, configs whose intervals "
+        "The interval is a 95% Wilson interval: at this sample size, configs whose intervals "
         "overlap heavily are not reliably different. Cost and latency are nominal (a cached "
         "re-run reports the original run's numbers).",
         "",

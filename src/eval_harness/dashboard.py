@@ -133,7 +133,7 @@ def leaderboard(df: pd.DataFrame, n_tasks: int) -> None:
     )
     if (s["n"] < s["n_tasks"]).any():
         st.caption(
-            "Partial runs (tasks < total) are not comparable with full runs. With ~50 tasks, "
+            "Partial runs (tasks < total) are not comparable with full runs. At this sample size, "
             "configs whose 95% intervals overlap heavily are not reliably different."
         )
 

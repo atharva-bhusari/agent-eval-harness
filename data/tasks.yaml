@@ -686,3 +686,180 @@ tasks:
     r ORDER BY rev DESC LIMIT 10)) / (SELECT SUM(rev) FROM r), 1)
   expected_result:
   - [44.2]
+
+- id: x01
+  difficulty: expert
+  tags: [join, aggregation, having, subquery]
+  ordered: false
+  question: How many customers have ordered at least one product from every product category?
+  expected_sql: SELECT COUNT(*) FROM (SELECT o.customer_id FROM orders o JOIN order_details od USING (order_id)
+    JOIN products p USING (product_id) GROUP BY o.customer_id HAVING COUNT(DISTINCT p.category_id) = (SELECT
+    COUNT(*) FROM categories))
+  expected_result:
+  - [36]
+
+- id: x02
+  difficulty: expert
+  tags: [join, subquery, filter]
+  ordered: false
+  question: Which products have never been ordered by any customer located in Germany? Return the product
+    names.
+  expected_sql: SELECT p.product_name FROM products p WHERE p.product_id NOT IN (SELECT od.product_id
+    FROM order_details od JOIN orders o USING (order_id) JOIN customers c USING (customer_id) WHERE c.country
+    = 'Germany')
+  expected_result:
+  - [Chef Anton's Gumbo Mix]
+  - [Chocolade]
+  - [Valkoinen suklaa]
+  - [Louisiana Hot Spiced Okra]
+
+- id: x03
+  difficulty: expert
+  tags: [join, date, aggregation]
+  ordered: false
+  question: For each category, what was the percentage change in revenue from January-April 1997 to January-April
+    1998 (by order date)? Return the category name and the change rounded to 1 decimal place. Revenue
+    is order-line unit price times quantity times (1 - discount).
+  expected_sql: WITH r AS (SELECT c.category_name, year(o.order_date) AS y, SUM(od.unit_price * od.quantity
+    * (1 - od.discount)) AS rev FROM order_details od JOIN orders o USING (order_id) JOIN products p USING
+    (product_id) JOIN categories c USING (category_id) WHERE month(o.order_date) <= 4 AND year(o.order_date)
+    IN (1997, 1998) GROUP BY 1, 2) SELECT a.category_name, ROUND(100.0 * (b.rev - a.rev) / a.rev, 1) FROM
+    r a JOIN r b ON a.category_name = b.category_name AND a.y = 1997 AND b.y = 1998
+  expected_result:
+  - [Beverages, 163.7]
+  - [Grains/Cereals, 31.6]
+  - [Condiments, 71.7]
+  - [Dairy Products, 157.0]
+  - [Produce, 100.7]
+  - [Confections, 70.7]
+  - [Meat/Poultry, 106.3]
+  - [Seafood, 285.2]
+
+- id: x04
+  difficulty: expert
+  tags: [self_join, join, date, aggregation]
+  ordered: false
+  question: For each manager, what was the total 1997 revenue from orders taken by the employees who report
+    directly to them (not including the manager's own orders or indirect reports)? Return the manager's
+    first name, last name, and revenue. Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: SELECT m.first_name, m.last_name, SUM(od.unit_price * od.quantity * (1 - od.discount))
+    FROM employees m JOIN employees e ON e.reports_to = m.employee_id JOIN orders o ON o.employee_id =
+    e.employee_id JOIN order_details od USING (order_id) WHERE year(o.order_date) = 1997 GROUP BY m.employee_id,
+    m.first_name, m.last_name
+  expected_result:
+  - [Andrew, Fuller, 416733.1056778418]
+  - [Steven, Buchanan, 129907.95665924612]
+
+- id: x05
+  difficulty: expert
+  tags: [window, date, ranking]
+  ordered: false
+  question: Which customer had the longest run of consecutive calendar months with at least one order
+    in each month? Return the company name and the length of the run in months. If several customers tie,
+    return all of them.
+  expected_sql: WITH m AS (SELECT DISTINCT customer_id, year(order_date) * 12 + month(order_date) AS k
+    FROM orders), g AS (SELECT customer_id, k - ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY k)
+    AS grp FROM m), s AS (SELECT customer_id, COUNT(*) AS n FROM g GROUP BY customer_id, grp) SELECT c.company_name,
+    s.n FROM s JOIN customers c USING (customer_id) WHERE s.n = (SELECT MAX(n) FROM s)
+  expected_result:
+  - [QUICK-Stop, 8]
+  - [Berglunds snabbköp, 8]
+
+- id: x06
+  difficulty: expert
+  tags: [subquery, date, aggregation]
+  ordered: false
+  question: Of the customers whose first-ever order was placed in 1996, how many also placed at least
+    one order in 1998?
+  expected_sql: WITH f AS (SELECT customer_id, MIN(order_date) AS d FROM orders GROUP BY 1) SELECT COUNT(*)
+    FROM f WHERE year(d) = 1996 AND customer_id IN (SELECT customer_id FROM orders WHERE year(order_date)
+    = 1998)
+  expected_result:
+  - [61]
+
+- id: x07
+  difficulty: expert
+  tags: [aggregation, date, subquery]
+  ordered: false
+  question: What was the median order value in 1997 (by order date), where an order's value is the sum
+    of its order lines? Round to 2 decimal places. Order-line value is unit price times quantity times
+    (1 - discount).
+  expected_sql: SELECT ROUND(MEDIAN(rev), 2) FROM (SELECT o.order_id, SUM(od.unit_price * od.quantity
+    * (1 - od.discount)) AS rev FROM orders o JOIN order_details od USING (order_id) WHERE year(o.order_date)
+    = 1997 GROUP BY 1)
+  expected_result:
+  - [1025.85]
+
+- id: x08
+  difficulty: expert
+  tags: [self_join, join, aggregation, ranking]
+  ordered: false
+  question: Which pair of different products appears together in the most orders? Return the two product
+    names and the number of orders that contain both.
+  expected_sql: SELECT p1.product_name, p2.product_name, COUNT(*) FROM order_details a JOIN order_details
+    b ON a.order_id = b.order_id AND a.product_id < b.product_id JOIN products p1 ON p1.product_id = a.product_id
+    JOIN products p2 ON p2.product_id = b.product_id GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 1
+  expected_result:
+  - [Sir Rodney's Scones, Sirop d'érable, 8]
+
+- id: x09
+  difficulty: expert
+  tags: [join, aggregation, having, subquery]
+  ordered: false
+  question: How many orders contain at least one discontinued product and also have a total order value
+    above 2000? Order value is the sum over its lines of unit price times quantity times (1 - discount).
+  expected_sql: SELECT COUNT(*) FROM (SELECT o.order_id FROM orders o JOIN order_details od USING (order_id)
+    JOIN products p USING (product_id) GROUP BY 1 HAVING MAX(p.discontinued) = 1 AND SUM(od.unit_price
+    * od.quantity * (1 - od.discount)) > 2000)
+  expected_result:
+  - [81]
+
+- id: x10
+  difficulty: expert
+  tags: [window, date, ranking]
+  ordered: true
+  question: Among customers with at least 10 orders, which 3 have the shortest average gap in days between
+    consecutive orders? Return the company name and the average gap rounded to 1 decimal place, from shortest
+    to longest.
+  expected_sql: WITH g AS (SELECT customer_id, order_date - LAG(order_date) OVER (PARTITION BY customer_id
+    ORDER BY order_date, order_id) AS d FROM orders), a AS (SELECT customer_id, AVG(d) AS avg_gap FROM
+    g GROUP BY 1 HAVING COUNT(*) >= 10) SELECT c.company_name, ROUND(a.avg_gap, 1) FROM a JOIN customers
+    c USING (customer_id) ORDER BY a.avg_gap LIMIT 3
+  expected_result:
+  - [Save-a-lot Markets, 19.0]
+  - [Ernst Handel, 22.7]
+  - [QUICK-Stop, 22.9]
+
+- id: x11
+  difficulty: expert
+  tags: [window, aggregation, ranking]
+  ordered: false
+  question: What is the smallest number of customers who together account for at least 50% of total revenue?
+    Revenue is order-line unit price times quantity times (1 - discount).
+  expected_sql: WITH r AS (SELECT o.customer_id, SUM(od.unit_price * od.quantity * (1 - od.discount))
+    AS rev FROM orders o JOIN order_details od USING (order_id) GROUP BY 1), c AS (SELECT SUM(rev) OVER
+    (ORDER BY rev DESC ROWS UNBOUNDED PRECEDING) AS cum, ROW_NUMBER() OVER (ORDER BY rev DESC) AS rn FROM
+    r) SELECT MIN(rn) FROM c WHERE cum >= 0.5 * (SELECT SUM(rev) FROM r)
+  expected_result:
+  - [13]
+
+- id: x12
+  difficulty: expert
+  tags: [join, subquery, ranking, having]
+  ordered: false
+  question: In each country that has at least 5 customers, which customer generated the most revenue?
+    Return the country, company name, and revenue. Revenue is order-line unit price times quantity times
+    (1 - discount).
+  expected_sql: WITH r AS (SELECT c.country, c.company_name, SUM(od.unit_price * od.quantity * (1 - od.discount))
+    AS rev FROM customers c JOIN orders o USING (customer_id) JOIN order_details od USING (order_id) WHERE
+    c.country IN (SELECT country FROM customers GROUP BY 1 HAVING COUNT(*) >= 5) GROUP BY c.customer_id,
+    c.country, c.company_name) SELECT country, company_name, rev FROM r WHERE rev = (SELECT MAX(r2.rev)
+    FROM r r2 WHERE r2.country = r.country)
+  expected_result:
+  - [UK, Seven Seas Imports, 16215.32504860127]
+  - [France, Bon app', 21963.252460421616]
+  - [USA, Save-a-lot Markets, 104361.94953946577]
+  - [Germany, QUICK-Stop, 110277.30502749437]
+  - [Spain, Godos Cocina Típica, 11446.359954724241]
+  - [Brazil, Hanari Carnes, 32841.36994542721]
+  - [Mexico, Tortuga Restaurante, 10812.15003483]
