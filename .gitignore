@@ -28,3 +28,6 @@ Thumbs.db
 
 # smoke eval output (CI artifact)
 smoke-out/
+
+# Personal interview prep (kept local, never committed)
+docs/INTERVIEW_HANDBOOK.md

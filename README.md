@@ -193,13 +193,12 @@ src/eval_harness/
   store.py            SQLite metrics store       report.py    REPORT.md + statistics
   dashboard.py        Streamlit app              smoke.py     CI smoke eval
 results/REPORT.md     latest comparison report
-docs/                 interview handbook, dashboard screenshots
+docs/images/          dashboard screenshots
 tests/                unit, integration, dashboard and smoke tests
 ```
 
 Design decisions and trade-offs are written up in
-[agent-eval-harness-design.md](agent-eval-harness-design.md) (the build spec and status log) and
-[docs/INTERVIEW_HANDBOOK.md](docs/INTERVIEW_HANDBOOK.md).
+[agent-eval-harness-design.md](agent-eval-harness-design.md) (the build spec and status log).
 
 ## License
 
