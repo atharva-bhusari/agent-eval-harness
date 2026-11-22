@@ -39,5 +39,5 @@ format:
 test:
 	uv run pytest
 
-smoke:          ## 5-task eval with a mocked LLM (used in CI)
-	@echo "not implemented (Phase 8)"
+smoke:          ## 5-task end-to-end eval on a scripted LLM: no key, no cost (used in CI)
+	uv run python -m eval_harness.smoke $(ARGS)

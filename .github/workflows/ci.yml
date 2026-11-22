@@ -4,26 +4,35 @@ on:
   push:
   pull_request:
 
+# Never needs a paid API key: the agent tests and the smoke eval use scripted fake LLMs.
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
+          enable-cache: true
       - name: Install
         run: uv sync --locked
       - name: Lint
         run: |
           uv run ruff check .
           uv run ruff format --check .
-      - name: Build Northwind DB
+      - name: Build Northwind DB (pinned dump, SHA-256 verified)
         run: uv run python -m eval_harness.db build
-      - name: Verify golden tasks
+      - name: Verify golden tasks (reference SQL reproduces every expected result)
         run: uv run python -m eval_harness.golden verify
       - name: Unit + integration tests
         run: uv run pytest
-      # Phase 8: 5-task smoke eval on a mocked LLM so CI never needs a paid key.
-      # - name: Smoke eval
-      #   run: make smoke
+      - name: Smoke eval (5 tasks end to end, scripted LLM)
+        run: uv run python -m eval_harness.smoke --out smoke-out
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: smoke-out/REPORT.md
+          if-no-files-found: ignore

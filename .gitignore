@@ -25,3 +25,6 @@ results/*.sqlite-shm
 .idea/
 .DS_Store
 Thumbs.db
+
+# smoke eval output (CI artifact)
+smoke-out/

@@ -1,0 +1,6 @@
+# Normalize line endings: LF in the repo and in checkouts on every OS (silences the
+# CRLF warnings on Windows and keeps diffs clean).
+* text=auto eol=lf
+*.png binary
+*.duckdb binary
+*.sqlite binary

@@ -26,11 +26,6 @@ def _run(*cmds: list[str]) -> int:
     return 0
 
 
-def _todo(phase: int, extra: str = "") -> int:
-    print(f"not implemented (Phase {phase}){' - ' + extra if extra else ''}")
-    return 0
-
-
 TARGETS = {
     "setup": lambda a: _run(["uv", "sync"]),
     "db": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.db", "build"]),
@@ -53,7 +48,7 @@ TARGETS = {
         ["uv", "run", "ruff", "format", "."], ["uv", "run", "ruff", "check", "--fix", "."]
     ),
     "test": lambda a: _run(["uv", "run", "pytest"]),
-    "smoke": lambda a: _todo(8),
+    "smoke": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.smoke", *a.extra]),
 }
 
 

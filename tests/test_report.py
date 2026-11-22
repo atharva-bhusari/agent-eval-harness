@@ -143,6 +143,7 @@ def test_dashboard_renders_every_section(store_path, monkeypatch):
         "Accuracy by difficulty",
         "Failure taxonomy",
         "Accuracy vs cost / latency",
+        "Summary",
         "Head-to-head (paired)",
         "Tasks × configs",
         "Drill-down",
@@ -155,9 +156,25 @@ def test_dashboard_renders_every_section(store_path, monkeypatch):
 def test_dashboard_drill_down_can_switch_task_and_config(store_path, monkeypatch):
     at = _app(monkeypatch, store_path).run()
     at.selectbox[0].set_value("cfg_b").run()  # config
-    at.selectbox[1].set_value("m01").run()  # task
+    assert at.selectbox[1].options == ["h01"]  # "failed only" is on by default
+    at.toggle(key="failed_only").set_value(False).run()
+    at.selectbox[1].set_value("m01").run()  # a passing task
     assert not at.exception, at.exception
     assert at.success and "Passed" in at.success[0].value
+
+
+def test_dashboard_view_is_restored_from_the_url(store_path, monkeypatch):
+    """Shareable links: ?configs=..&run_config=..&task=.. reopens the same view. Task
+    options are plain ids, because a URL-bound selectbox stores the displayed label."""
+    at = _app(monkeypatch, store_path)
+    at.query_params["configs"] = ["cfg_a"]
+    at.query_params["run_config"] = "cfg_a"
+    at.query_params["task"] = "h01"
+    at.run()
+    assert not at.exception, at.exception
+    assert at.multiselect[0].value == ["cfg_a"]
+    assert (at.selectbox[0].value, at.selectbox[1].value) == ("cfg_a", "h01")
+    assert "schema_hallucination" in at.error[0].value
 
 
 def test_dashboard_handles_empty_and_missing_store(tmp_path, monkeypatch):
@@ -198,6 +215,8 @@ def _df(rows):
                     n_retries=0,
                     n_tool_calls=1,
                     failure_category=None if ok else "wrong_result",
+                    failure_detail=None if ok else "query ran but the result set differs",
+                    score_detail="result set matches" if ok else "row count differs",
                 )
             )
     return pd.DataFrame(recs)
@@ -264,3 +283,13 @@ def test_partial_configs_cannot_win():
     )
     lines = report.summary_prose(report.config_summary(df, 50), report.paired_comparisons(df))
     assert lines[0].startswith("**Winner on accuracy: `full`**")
+
+
+def test_single_config_report_renders(tmp_path):
+    """Regression (found by the smoke eval): one config means no pairs; the summary must
+    not crash filtering an empty comparison table."""
+    df = _df([("only", "m", "v1", {"t0": True, "t1": False})])
+    pairs = report.paired_comparisons(df)
+    assert pairs.empty and "kind" in pairs.columns
+    md = report.render_markdown(df, n_tasks=2)
+    assert "**Winner on accuracy: `only`**" in md and "## Head-to-head" not in md

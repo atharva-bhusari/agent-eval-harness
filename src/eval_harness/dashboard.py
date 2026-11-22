@@ -25,6 +25,7 @@ from eval_harness.report import (
     failure_counts,
     load_runs,
     paired_comparisons,
+    summary_prose,
 )
 from eval_harness.types import DIFFICULTIES, FAILURE_CATEGORIES
 
@@ -85,6 +86,12 @@ def _color_scale(all_configs: list[str]) -> alt.Scale:
     colors = PALETTE[_theme()]
     domain = sorted(all_configs)[:MAX_SERIES]
     return alt.Scale(domain=domain, range=colors[: len(domain)])
+
+
+def _legend(df: pd.DataFrame) -> alt.Legend:
+    """Legend listing only the configs on screen. The colour *domain* stays the full
+    config list, so a config keeps its colour when others are filtered out."""
+    return alt.Legend(orient="top", values=sorted(df["config_id"].unique()))
 
 
 # --------------------------------------------------------------------------------------
@@ -148,9 +155,7 @@ def difficulty_chart(df: pd.DataFrame, scale: alt.Scale) -> None:
                 axis=alt.Axis(format="%", tickCount=5, grid=True),
                 title=None,
             ),
-            color=alt.Color(
-                "config_id:N", scale=scale, title="config", legend=alt.Legend(orient="top")
-            ),
+            color=alt.Color("config_id:N", scale=scale, title="config", legend=_legend(df)),
             tooltip=[
                 alt.Tooltip("config_id:N", title="config"),
                 alt.Tooltip("difficulty:N"),
@@ -190,9 +195,7 @@ def failure_chart(df: pd.DataFrame, scale: alt.Scale) -> None:
             y=alt.Y("failure_category:N", sort=order, title=None, axis=alt.Axis(labelLimit=220)),
             yOffset=alt.YOffset("config_id:N", scale=alt.Scale(paddingInner=0.08)),
             x=alt.X("runs:Q", title="failed runs", axis=alt.Axis(tickMinStep=1, grid=True)),
-            color=alt.Color(
-                "config_id:N", scale=scale, title="config", legend=alt.Legend(orient="top")
-            ),
+            color=alt.Color("config_id:N", scale=scale, title="config", legend=_legend(df)),
             tooltip=[
                 alt.Tooltip("config_id:N", title="config"),
                 alt.Tooltip("failure_category:N", title="category"),
@@ -223,12 +226,17 @@ def tradeoff_chart(df: pd.DataFrame, n_tasks: int, scale: alt.Scale) -> None:
         if axis == "cost / run"
         else ("mean_latency_s", ".1f", "mean latency per task (s)")
     )
+    # Neighbouring points (by x) get labels above / below alternately so they don't
+    # collide; the x range is padded so right-hand labels aren't clipped.
+    s = s.sort_values(field).reset_index(drop=True)
+    s["label_above"] = s.index % 2 == 0
+    x_max = float(s[field].max() or 1) * 1.3
     base = alt.Chart(s).encode(
         x=alt.X(
             f"{field}:Q",
             title=title,
             axis=alt.Axis(format=fmt, grid=True),
-            scale=alt.Scale(zero=True, nice=True),
+            scale=alt.Scale(domain=[0, x_max], nice=False),
         ),
         y=alt.Y(
             "accuracy:Q",
@@ -238,9 +246,7 @@ def tradeoff_chart(df: pd.DataFrame, n_tasks: int, scale: alt.Scale) -> None:
         ),
     )
     points = base.mark_point(filled=True, size=140, opacity=1).encode(
-        color=alt.Color(
-            "config_id:N", scale=scale, title="config", legend=alt.Legend(orient="top")
-        ),
+        color=alt.Color("config_id:N", scale=scale, title="config", legend=_legend(df)),
         tooltip=[
             alt.Tooltip("config_id:N", title="config"),
             alt.Tooltip("accuracy:Q", format=".1%"),
@@ -251,9 +257,25 @@ def tradeoff_chart(df: pd.DataFrame, n_tasks: int, scale: alt.Scale) -> None:
     )
     # Direct labels: with >3 series, colour alone isn't enough to tell points apart. The
     # label stays in the theme's text colour; the dot beside it carries the identity.
-    labels = base.mark_text(align="left", dx=9, dy=-9, fontSize=12).encode(text="config_id:N")
-    st.altair_chart((points + labels).properties(height=300), width="stretch")
+    above = (
+        base.transform_filter("datum.label_above")
+        .mark_text(align="left", dx=9, dy=-10, fontSize=12)
+        .encode(text="config_id:N")
+    )
+    below = (
+        base.transform_filter("!datum.label_above")
+        .mark_text(align="left", dx=9, dy=14, fontSize=12)
+        .encode(text="config_id:N")
+    )
+    st.altair_chart((points + above + below).properties(height=300), width="stretch")
     st.caption("Up and to the left is better. Partial runs (fewer tasks) are not comparable.")
+
+
+def verdict(df: pd.DataFrame, n_tasks: int) -> None:
+    """The same generated summary as REPORT.md, for the configs on screen."""
+    st.subheader("Summary")
+    for line in summary_prose(config_summary(df, n_tasks), paired_comparisons(df)):
+        st.markdown(f"- {line}")
 
 
 def head_to_head(df: pd.DataFrame) -> None:
@@ -335,17 +357,18 @@ def _rows_frame(rows: list | None) -> pd.DataFrame:
 
 def drill_down(df: pd.DataFrame, tasks: dict, store_path: Path) -> None:
     st.subheader("Drill-down")
-    c1, c2 = st.columns(2)
+    c1, c2, c3 = st.columns([2, 2, 1], vertical_alignment="bottom")
     configs = sorted(df["config_id"].unique())
-    cfg = c1.selectbox("Config", configs)
+    cfg = c1.selectbox("Config", configs, key="run_config", bind="query-params")
     sub = df[df["config_id"] == cfg].set_index("task_id")
-    labels = {
-        tid: f"{tid}  {PASS if r.success else FAIL + ' ' + r.failure_category}"
-        for tid, r in sub.iterrows()
-    }
-    order = [t for t in tasks if t in labels] + [t for t in labels if t not in tasks]
+    failed_only = c3.toggle("Failed only", value=True, key="failed_only")
+    order = [t for t in tasks if t in sub.index] + [t for t in sub.index if t not in tasks]
     failed_first = sorted(order, key=lambda t: bool(sub.at[t, "success"]))
-    tid = c2.selectbox("Task", failed_first, format_func=labels.get)
+    if failed_only:
+        failed_first = [t for t in failed_first if not sub.at[t, "success"]] or failed_first
+    # Plain task ids as options (no format_func): a URL-bound selectbox stores the
+    # *displayed* label, so a per-config pass/fail marker would break ?task=h08 links.
+    tid = c2.selectbox("Task", failed_first, key="task", bind="query-params")
     if tid is None:
         return
     run = sub.loc[tid]
@@ -441,7 +464,10 @@ def main() -> None:
             st.stop()
         df_all = _load(str(store_path), _mtime(store_path))
         all_configs = sorted(df_all["config_id"].unique())
-        chosen = st.multiselect("Configs", all_configs, default=all_configs)
+        # URL-bound so a filtered view is a shareable link (?configs=a&configs=b)
+        chosen = st.multiselect(
+            "Configs", all_configs, default=all_configs, key="configs", bind="query-params"
+        )
         if st.button("Reload"):
             st.cache_data.clear()
             st.rerun()
@@ -477,7 +503,8 @@ def main() -> None:
     with left:
         tradeoff_chart(df, len(tasks), scale)
     with right:
-        head_to_head(df)
+        verdict(df, len(tasks))
+    head_to_head(df)
     task_grid(df, tasks)
     drill_down(df, tasks, store_path)
 

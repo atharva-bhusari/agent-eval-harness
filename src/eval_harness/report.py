@@ -145,6 +145,24 @@ def _pair_kind(a: pd.Series, b: pd.Series) -> str:
     return "model + prompt"
 
 
+PAIR_COLUMNS = [
+    "kind",
+    "a",
+    "b",
+    "n",
+    "both_pass",
+    "a_only",
+    "b_only",
+    "both_fail",
+    "acc_a",
+    "acc_b",
+    "delta",
+    "p_value",
+    "a_only_tasks",
+    "b_only_tasks",
+]
+
+
 def paired_comparisons(df: pd.DataFrame) -> pd.DataFrame:
     """Every pair of configs compared on the tasks *both* ran (paired, so task difficulty
     cancels out). Prompt pairs are oriented v1 -> v2; others by config id. Sorted with
@@ -182,7 +200,9 @@ def paired_comparisons(df: pd.DataFrame) -> pd.DataFrame:
                     "b_only_tasks": ", ".join(sorted(both.index[~sa & sb])),
                 }
             )
-    out = pd.DataFrame(rows)
+    # Keep the columns even with no pairs (one config, or no shared tasks), so callers can
+    # filter on them without special-casing an empty result.
+    out = pd.DataFrame(rows, columns=PAIR_COLUMNS)
     if out.empty:
         return out
     order = {"prompt": 0, "model": 1, "model + prompt": 2}
