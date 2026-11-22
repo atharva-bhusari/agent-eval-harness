@@ -21,11 +21,11 @@ reclassify:     ## re-label stored failed runs after a classifier change (no mod
 sweep:          ## run every config in configs/ and regenerate the report
 	@echo "not implemented (Phase 7)"
 
-report:         ## write results/REPORT.md
-	@echo "not implemented (Phase 6)"
+report:         ## write results/REPORT.md from the store [ARGS="--configs a,b"]
+	uv run python -m eval_harness.report $(ARGS)
 
-dashboard:      ## serve the Streamlit dashboard
-	@echo "not implemented (Phase 6)"
+dashboard:      ## serve the Streamlit dashboard (http://localhost:8501)
+	uv run streamlit run src/eval_harness/dashboard.py
 
 lint:
 	uv run ruff check .

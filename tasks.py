@@ -6,7 +6,7 @@ Usage:
     uv run python tasks.py --list
 
 Extra arguments after the target are forwarded to `eval` (e.g. --tasks, --limit, --resume)
-and to `reclassify` (e.g. --dry-run).
+to `reclassify` (e.g. --dry-run), `report` (e.g. --configs a,b) and `dashboard`.
 """
 
 from __future__ import annotations
@@ -41,8 +41,10 @@ TARGETS = {
         ["uv", "run", "python", "-m", "eval_harness.classify", "reclassify", *a.extra]
     ),
     "sweep": lambda a: _todo(7),
-    "report": lambda a: _todo(6),
-    "dashboard": lambda a: _todo(6),
+    "report": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.report", *a.extra]),
+    "dashboard": lambda a: _run(
+        ["uv", "run", "streamlit", "run", "src/eval_harness/dashboard.py", *a.extra]
+    ),
     "lint": lambda a: _run(
         ["uv", "run", "ruff", "check", "."], ["uv", "run", "ruff", "format", "--check", "."]
     ),
