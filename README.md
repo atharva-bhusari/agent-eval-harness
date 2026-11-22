@@ -10,9 +10,10 @@ The reference agent-under-test is a **LangGraph text-to-SQL agent** over a local
 the Northwind database (a food import/export company: customers, orders, products, suppliers,
 employees). It sits behind an `Agent` Protocol, so any agent can be swapped in.
 
-> **Status:** 🚧 Phases 0–4 complete (scaffold, Northwind DB + result canonicalization,
+> **Status:** 🚧 Phases 0–5 complete (scaffold, Northwind DB + result canonicalization,
 > LangGraph text-to-SQL agent, 50-task verified golden set, async runner + SQLite store +
-> response cache). Full results table lands after Phase 7.
+> response cache, execution-accuracy scorer + root-cause failure classifier). Full results
+> table lands after Phase 7.
 >
 > **First result:** llama3.1:8b (local, Ollama) with the v2 prompt scores **40/50 = 80%**
 > execution accuracy, at 27.5 s mean latency and $0. A cached re-run takes 2 minutes instead of 23.
@@ -57,6 +58,7 @@ make lint        # or: uv run python tasks.py lint
 | `db` | download the pinned Northwind dump and build `data/northwind.duckdb` | 1 ✅ |
 | `verify-tasks` | check every golden task's reference SQL reproduces its expected rows (50/50) | 3 ✅ |
 | `eval CONFIG=…` | run all tasks for one config (`--tasks`, `--limit`, `--resume`) | 4 ✅ |
+| `reclassify` | re-label stored failures after a classifier change (no model calls) | 5 ✅ |
 | `report` / `dashboard` | Markdown table / Streamlit app | 6 |
 | `sweep` | run the 2×2 A/B grid and regenerate the report | 7 |
 | `smoke` | 5-task eval on a mocked LLM (CI) | 8 |

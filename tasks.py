@@ -5,7 +5,8 @@ Usage:
     uv run python tasks.py eval --config configs/ollama_llama.yaml --tasks e01,m03 --resume
     uv run python tasks.py --list
 
-Extra arguments after the target are forwarded to `eval` (e.g. --tasks, --limit, --resume).
+Extra arguments after the target are forwarded to `eval` (e.g. --tasks, --limit, --resume)
+and to `reclassify` (e.g. --dry-run).
 """
 
 from __future__ import annotations
@@ -35,6 +36,9 @@ TARGETS = {
     "verify-tasks": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.golden", "verify"]),
     "eval": lambda a: _run(
         ["uv", "run", "python", "-m", "eval_harness.runner", "--config", a.config, *a.extra]
+    ),
+    "reclassify": lambda a: _run(
+        ["uv", "run", "python", "-m", "eval_harness.classify", "reclassify", *a.extra]
     ),
     "sweep": lambda a: _todo(7),
     "report": lambda a: _todo(6),

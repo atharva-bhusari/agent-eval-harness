@@ -31,6 +31,7 @@ def execution_accuracy(task: Task, result: AgentResult) -> Score:
     if task.ordered and results_match(exp, act, ordered=False):
         return Score(False, "right rows, wrong order")
     # Same shape, different values: show the first mismatching row to aid debugging.
-    missing = [r for r in normalize_rows(exp) if r not in set(normalize_rows(act))]
+    got = set(normalize_rows(act))
+    missing = [r for r in normalize_rows(exp) if r not in got]
     hint = f"; e.g. expected row {missing[0]!r} not found" if missing else ""
     return Score(False, f"same shape, different values{hint}")

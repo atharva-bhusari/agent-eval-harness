@@ -18,7 +18,7 @@ from dataclasses import asdict, fields
 from pathlib import Path
 
 from eval_harness.settings import env, repo_root
-from eval_harness.types import RunRecord, ToolCall
+from eval_harness.types import FAILURE_CATEGORIES, RunRecord, ToolCall
 
 DEFAULT_STORE_PATH = Path(env("EVAL_HARNESS_STORE", str(repo_root() / "results" / "runs.sqlite")))
 
@@ -92,6 +92,19 @@ class Store:
                     for i, c in enumerate(tool_calls)
                 ],
             )
+
+    def set_failure(self, run_id: str, category: str, detail: str | None) -> None:
+        """Re-label one failed run (used by ``classify reclassify``)."""
+        if category not in FAILURE_CATEGORIES:
+            raise ValueError(f"unknown failure category {category!r}")
+        with self.con:
+            cur = self.con.execute(
+                "UPDATE runs SET failure_category = ?, failure_detail = ? "
+                "WHERE run_id = ? AND success = 0",
+                (category, detail, run_id),
+            )
+        if cur.rowcount != 1:
+            raise KeyError(f"no failed run with run_id {run_id!r}")
 
     def run_ids(self, config_id: str | None = None) -> set[str]:
         sql, args = "SELECT run_id FROM runs", ()

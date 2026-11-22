@@ -27,7 +27,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from eval_harness import golden
-from eval_harness.classify import classify
+from eval_harness.classify import explain
 from eval_harness.config import load_config
 from eval_harness.llm import is_local
 from eval_harness.scorers import execution_accuracy
@@ -58,6 +58,7 @@ def failed_result(stop_reason: str, error: str, latency_ms: int) -> AgentResult:
 
 def build_record(task: Task, config: Config, result: AgentResult) -> RunRecord:
     score = execution_accuracy(task, result)
+    verdict = None if score.success else explain(task, result)
     rows = result.answer_rows
     return RunRecord(
         run_id=make_run_id(task.id, config.id, config.prompt_version),
@@ -66,7 +67,7 @@ def build_record(task: Task, config: Config, result: AgentResult) -> RunRecord:
         model=config.model,
         prompt_version=config.prompt_version,
         success=score.success,
-        failure_category=None if score.success else classify(task, result),
+        failure_category=verdict.category if verdict else None,
         latency_ms=result.latency_ms,
         prompt_tokens=result.prompt_tokens,
         completion_tokens=result.completion_tokens,
@@ -79,6 +80,7 @@ def build_record(task: Task, config: Config, result: AgentResult) -> RunRecord:
         stop_reason=result.stop_reason,
         error=result.error,
         score_detail=score.detail,
+        failure_detail=verdict.reason if verdict else None,
         n_nudges=result.n_nudges,
         n_recovered_calls=result.n_recovered_calls,
         n_llm_calls=result.n_llm_calls,

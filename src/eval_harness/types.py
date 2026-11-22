@@ -146,6 +146,7 @@ class RunRecord:
     stop_reason: str = "answered"
     error: str | None = None
     score_detail: str = ""
+    failure_detail: str | None = None  # classifier's one-line reason (failed runs only)
     n_nudges: int = 0
     n_recovered_calls: int = 0
     n_llm_calls: int = 0

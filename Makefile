@@ -1,7 +1,7 @@
 # Task targets. On Windows without make, use the mirror: `uv run python tasks.py <target>`.
 CONFIG ?= configs/baseline.yaml
 
-.PHONY: setup db verify-tasks eval sweep report dashboard lint format test smoke
+.PHONY: setup db verify-tasks eval reclassify sweep report dashboard lint format test smoke
 
 setup:          ## install deps into .venv
 	uv sync
@@ -14,6 +14,9 @@ verify-tasks:   ## check every expected_sql reproduces expected_result (+ lint r
 
 eval:           ## run all tasks for one config: make eval CONFIG=configs/baseline.yaml [ARGS="--resume"]
 	uv run python -m eval_harness.runner --config $(CONFIG) $(ARGS)
+
+reclassify:     ## re-label stored failed runs after a classifier change (no model calls) [ARGS="--dry-run"]
+	uv run python -m eval_harness.classify reclassify $(ARGS)
 
 sweep:          ## run every config in configs/ and regenerate the report
 	@echo "not implemented (Phase 7)"
