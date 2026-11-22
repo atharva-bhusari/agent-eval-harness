@@ -144,15 +144,17 @@ class LiteLLMClient:
     def __init__(
         self,
         model: str,
-        temperature: float = 0.0,
+        temperature: float | None = 0.0,
         request_timeout_s: float = 300,
         use_cache: bool = not CACHE_DISABLED,
         cache_dir: Path | str = CACHE_DIR,
         completion_fn: Callable[..., Any] | None = None,
         max_attempts: int = MAX_ATTEMPTS,
+        extra_params: dict[str, Any] | None = None,
     ):
         self.model = model
-        self.temperature = temperature
+        self.temperature = temperature  # None: omitted from the request (provider default)
+        self.extra_params = dict(extra_params or {})
         self.request_timeout_s = request_timeout_s
         self.max_attempts = max_attempts
         self.wait = wait_exponential_jitter(initial=1, max=30)  # tests swap in wait_none()
@@ -165,7 +167,15 @@ class LiteLLMClient:
 
     @property
     def options(self) -> dict[str, Any]:
-        return {"num_ctx": OLLAMA_NUM_CTX} if is_local(self.model) else {}
+        """Request kwargs besides model/messages/tools/timeout/temperature. Part of the
+        cache key; with no ``extra_params`` it is unchanged from earlier versions, so
+        existing cache entries stay valid."""
+        opts: dict[str, Any] = {"num_ctx": OLLAMA_NUM_CTX} if is_local(self.model) else {}
+        return {**opts, **self.extra_params}
+
+    def _request_kwargs(self) -> dict[str, Any]:
+        temp = {} if self.temperature is None else {"temperature": self.temperature}
+        return {**temp, **self.options}
 
     def _completion(self, **kwargs: Any) -> Any:
         if self._completion_fn is None:
@@ -198,9 +208,8 @@ class LiteLLMClient:
                 model=litellm_model_id(self.model),
                 messages=messages,
                 tools=tools or None,
-                temperature=self.temperature,
                 timeout=budget,
-                **self.options,
+                **self._request_kwargs(),
             )
         except RetryError as exc:  # pragma: no cover (reraise=True re-raises the original)
             raise exc.last_attempt.exception() from exc

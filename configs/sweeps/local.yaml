@@ -1,0 +1,4 @@
+# Free, offline prompt A/B on the local model (Ollama). Slow: v1 averages ~2-3 min/task.
+name: local
+title: "Local A/B: llama3.1:8b × prompt v1/v2"
+configs: [ollama_llama, ollama_llama_v2]

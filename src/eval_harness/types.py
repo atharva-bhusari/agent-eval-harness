@@ -104,7 +104,9 @@ class Config:
     id: str
     model: str  # litellm model id, e.g. "openai/gpt-4o-mini"
     prompt_version: str
-    temperature: float = 0.0
+    # None = don't send it (provider default). Needed for models that reject a non-default
+    # temperature, e.g. Claude Haiku 5.5 returns 400 for anything but its default.
+    temperature: float | None = 0.0
     # Max model turns per run. 12, not the spec's 6: with one tool call per turn, a clean
     # v1 run already takes ~6 turns (list_tables, 2x get_schema, dry_run, run_sql, reply),
     # which would leave no budget for self-correction.
@@ -113,6 +115,10 @@ class Config:
     # Runs in flight at once. 5 suits hosted APIs; use 1 for a single local GPU (Ollama),
     # where parallel requests just queue up and time out.
     concurrency: int = 5
+    # Extra provider-specific kwargs passed to litellm.completion (and part of the cache
+    # key), e.g. {"thinking": {"type": "disabled"}} so a thinking-by-default model runs the
+    # same plain tool loop as the others.
+    llm_params: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

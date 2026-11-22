@@ -1,0 +1,4 @@
+# The A/B grid from the spec: 2 hosted models x 2 prompt versions.
+name: hosted
+title: "A/B sweep: gpt-4o-mini vs Claude Haiku 5.5 × prompt v1/v2"
+configs: [gpt4o_mini_v1, gpt4o_mini_v2, haiku_v1, haiku_v2]

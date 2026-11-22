@@ -1,5 +1,5 @@
-# Config: one cell of the A/B grid (model x prompt version).
-id: baseline
+# A/B grid cell: gpt-4o-mini x prompt v1 (schema discovered through tools).
+id: gpt4o_mini_v1
 model: openai/gpt-4o-mini          # litellm model id
 prompt_version: v1
 temperature: 0.0

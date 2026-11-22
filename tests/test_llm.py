@@ -180,3 +180,42 @@ def test_tool_call_args_may_be_dict_or_malformed(tmp_path):
 def test_local_models_cost_nothing(tmp_path):
     c = LiteLLMClient("ollama/llama3.1:8b", use_cache=False, completion_fn=FakeCompletion())
     assert c(MSGS, []).cost_usd == 0.0
+
+
+# ---- per-config request params (Phase 7: Claude Haiku 5.5 needs both) -------------------
+def test_temperature_none_is_omitted_from_the_request(tmp_path):
+    fake = FakeCompletion()
+    client(tmp_path, fake, temperature=None)(MSGS, [])
+    assert "temperature" not in fake.calls[0]
+    fake2 = FakeCompletion()
+    client(tmp_path / "b", fake2, temperature=0.0)(MSGS, [])
+    assert fake2.calls[0]["temperature"] == 0.0
+
+
+def test_extra_params_are_sent_and_keyed(tmp_path):
+    fake = FakeCompletion(fake_raw(), fake_raw())
+    thinking_off = {"thinking": {"type": "disabled"}}
+    client(tmp_path, fake, extra_params=thinking_off)(MSGS, [])
+    assert fake.calls[0]["thinking"] == {"type": "disabled"}
+    client(tmp_path, fake)(MSGS, [])  # same messages, different params: must not hit cache
+    assert len(fake.calls) == 2
+
+
+def test_cache_key_is_unchanged_when_no_extra_params(tmp_path):
+    """Adding extra_params support must not invalidate existing cache entries."""
+    c = client(tmp_path, FakeCompletion())
+    assert c.options == {}
+    assert cache_key(c.model, c.temperature, MSGS, [], c.options) == cache_key(
+        "openai/gpt-4o-mini", 0.0, MSGS, [], {}
+    )
+
+
+def test_haiku_configs_omit_temperature_and_disable_thinking():
+    from eval_harness.config import load_config
+    from eval_harness.settings import repo_root
+
+    for name in ("haiku_v1", "haiku_v2"):
+        cfg = load_config(repo_root() / "configs" / f"{name}.yaml")
+        assert cfg.model == "anthropic/claude-haiku-5-5"
+        assert cfg.temperature is None
+        assert cfg.llm_params == {"thinking": {"type": "disabled"}}

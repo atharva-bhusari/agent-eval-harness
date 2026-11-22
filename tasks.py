@@ -1,12 +1,13 @@
 """Cross-platform mirror of the Makefile, for machines without `make` (e.g. Windows).
 
 Usage:
-    uv run python tasks.py <target> [--config configs/baseline.yaml] [extra args...]
+    uv run python tasks.py <target> [--config configs/gpt4o_mini_v1.yaml] [extra args...]
     uv run python tasks.py eval --config configs/ollama_llama.yaml --tasks e01,m03 --resume
     uv run python tasks.py --list
 
-Extra arguments after the target are forwarded to `eval` (e.g. --tasks, --limit, --resume)
-to `reclassify` (e.g. --dry-run), `report` (e.g. --configs a,b) and `dashboard`.
+Extra arguments after the target are forwarded to `eval` (e.g. --tasks, --limit, --resume),
+to `reclassify` (e.g. --dry-run), `report` (e.g. --configs a,b), `sweep` (e.g. --grid
+configs/sweeps/local.yaml --limit 5) and `dashboard`.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ TARGETS = {
     "reclassify": lambda a: _run(
         ["uv", "run", "python", "-m", "eval_harness.classify", "reclassify", *a.extra]
     ),
-    "sweep": lambda a: _todo(7),
+    "sweep": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.sweep", *a.extra]),
     "report": lambda a: _run(["uv", "run", "python", "-m", "eval_harness.report", *a.extra]),
     "dashboard": lambda a: _run(
         ["uv", "run", "streamlit", "run", "src/eval_harness/dashboard.py", *a.extra]
@@ -61,7 +62,7 @@ def main() -> int:
         description=__doc__, formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument("target", nargs="?", choices=sorted(TARGETS))
-    parser.add_argument("--config", default="configs/baseline.yaml")
+    parser.add_argument("--config", default="configs/gpt4o_mini_v1.yaml")
     parser.add_argument("--list", action="store_true", help="list targets")
     args, args.extra = parser.parse_known_args()
     if args.list or args.target is None:

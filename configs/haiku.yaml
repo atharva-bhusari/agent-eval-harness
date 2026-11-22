@@ -1,7 +1,0 @@
-# Config: one cell of the A/B grid (model x prompt version).
-id: haiku
-model: anthropic/claude-haiku-5-5          # litellm model id
-prompt_version: v1
-temperature: 0.0
-max_iters: 12
-timeout_s: 60

@@ -1,5 +1,6 @@
 # Task targets. On Windows without make, use the mirror: `uv run python tasks.py <target>`.
-CONFIG ?= configs/baseline.yaml
+CONFIG ?= configs/gpt4o_mini_v1.yaml
+GRID ?= configs/sweeps/hosted.yaml
 
 .PHONY: setup db verify-tasks eval reclassify sweep report dashboard lint format test smoke
 
@@ -12,14 +13,14 @@ db:             ## build data/northwind.duckdb (downloads the pinned Northwind d
 verify-tasks:   ## check every expected_sql reproduces expected_result (+ lint rules)
 	uv run python -m eval_harness.golden verify
 
-eval:           ## run all tasks for one config: make eval CONFIG=configs/baseline.yaml [ARGS="--resume"]
+eval:           ## run all tasks for one config: make eval CONFIG=configs/gpt4o_mini_v1.yaml [ARGS="--resume"]
 	uv run python -m eval_harness.runner --config $(CONFIG) $(ARGS)
 
 reclassify:     ## re-label stored failed runs after a classifier change (no model calls) [ARGS="--dry-run"]
 	uv run python -m eval_harness.classify reclassify $(ARGS)
 
-sweep:          ## run every config in configs/ and regenerate the report
-	@echo "not implemented (Phase 7)"
+sweep:          ## run a grid of configs + regenerate REPORT.md: make sweep [GRID=configs/sweeps/local.yaml] [ARGS="--limit 5"]
+	uv run python -m eval_harness.sweep --grid $(GRID) $(ARGS)
 
 report:         ## write results/REPORT.md from the store [ARGS="--configs a,b"]
 	uv run python -m eval_harness.report $(ARGS)

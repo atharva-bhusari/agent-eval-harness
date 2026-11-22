@@ -1,9 +1,0 @@
-# Config: one cell of the A/B grid (model x prompt version).
-id: gpt4o_mini
-model: openai/gpt-4o-mini          # litellm model id
-prompt_version: v1
-temperature: 0.0
-max_iters: 12
-timeout_s: 60
-# TODO(Phase 7): this currently duplicates baseline. Reconcile the four files into a
-# clean 2x2 grid (gpt-4o-mini|haiku x v1|v2), e.g. haiku_v2.

@@ -142,6 +142,8 @@ def test_dashboard_renders_every_section(store_path, monkeypatch):
         "Leaderboard",
         "Accuracy by difficulty",
         "Failure taxonomy",
+        "Accuracy vs cost / latency",
+        "Head-to-head (paired)",
         "Tasks × configs",
         "Drill-down",
     ]
@@ -165,3 +167,100 @@ def test_dashboard_handles_empty_and_missing_store(tmp_path, monkeypatch):
     assert not at.exception and "no runs yet" in at.info[0].value
     at = _app(monkeypatch, tmp_path / "missing.sqlite").run()
     assert not at.exception and "Store not found" in at.error[0].value
+
+
+# ---- paired comparison + summary prose (Phase 7) ---------------------------------------
+def test_mcnemar_exact():
+    assert report.mcnemar_exact(0, 0) == 1.0
+    assert report.mcnemar_exact(5, 5) == 1.0
+    assert report.mcnemar_exact(0, 6) == pytest.approx(2 / 64)  # 0.03125: significant
+    assert report.mcnemar_exact(0, 5) == pytest.approx(2 / 32)  # 0.0625: not quite
+    assert report.mcnemar_exact(2, 9) == report.mcnemar_exact(9, 2)  # symmetric
+
+
+def _df(rows):
+    """rows: (config, model, prompt, {task: success})"""
+    import pandas as pd
+
+    recs = []
+    for cid, model, prompt, results in rows:
+        for tid, ok in results.items():
+            recs.append(
+                dict(
+                    config_id=cid,
+                    model=model,
+                    prompt_version=prompt,
+                    task_id=tid,
+                    success=ok,
+                    difficulty="easy",
+                    latency_ms=1000,
+                    cost_usd=0.001,
+                    n_retries=0,
+                    n_tool_calls=1,
+                    failure_category=None if ok else "wrong_result",
+                )
+            )
+    return pd.DataFrame(recs)
+
+
+def test_paired_comparisons_orient_prompt_pairs_and_use_shared_tasks():
+    ts = [f"t{i}" for i in range(10)]
+    df = _df(
+        [
+            ("m_v2", "m", "v2", {t: True for t in ts}),
+            ("m_v1", "m", "v1", {t: i < 3 for i, t in enumerate(ts)}),
+            ("n_v1", "n", "v1", {t: i % 2 == 0 for i, t in enumerate(ts[:4])}),  # partial
+        ]
+    )
+    pairs = report.paired_comparisons(df)
+    assert list(pairs["kind"]) == ["prompt", "model", "model + prompt"]
+    p = pairs.iloc[0]
+    assert (p.a, p.b, p.n, p.a_only, p.b_only) == ("m_v1", "m_v2", 10, 0, 7)
+    assert p.delta == pytest.approx(0.7) and p.p_value == pytest.approx(2 / 128)
+    assert p.b_only_tasks == "t3, t4, t5, t6, t7, t8, t9"
+    model_pair = pairs.iloc[1]
+    assert {model_pair.a, model_pair.b} == {"m_v1", "n_v1"} and model_pair.n == 4
+
+
+def test_summary_prose_calls_a_non_significant_lead_a_tie():
+    ts = [f"t{i}" for i in range(50)]
+    df = _df(
+        [
+            ("a", "m", "v1", {t: i < 42 for i, t in enumerate(ts)}),
+            ("b", "m", "v2", {t: i < 40 for i, t in enumerate(ts)}),
+        ]
+    )
+    df.loc[df.config_id == "b", "cost_usd"] = 0.0002
+    df.loc[df.config_id == "b", "latency_ms"] = 500
+    s = report.config_summary(df, 50)
+    lines = report.summary_prose(s, report.paired_comparisons(df))
+    text = "\n".join(lines)
+    assert "**Winner on accuracy: `a`**" in text
+    assert "not statistically significant" in text
+    assert "`b` is 5.0× cheaper per run" in text and "2.0× faster" in text
+    assert "Prompt effect on `m`: `a` → `b` is -4 points" in text
+
+
+def test_summary_prose_significant_lead_and_no_tradeoff():
+    ts = [f"t{i}" for i in range(50)]
+    df = _df(
+        [
+            ("a", "m", "v1", {t: True for t in ts}),
+            ("b", "n", "v1", {t: i < 30 for i, t in enumerate(ts)}),
+        ]
+    )
+    df.loc[df.config_id == "b", "cost_usd"] = 0.01
+    lines = report.summary_prose(report.config_summary(df, 50), report.paired_comparisons(df))
+    assert any("significantly ahead" in x for x in lines)
+    assert any("no cost/latency trade-off" in x for x in lines)
+
+
+def test_partial_configs_cannot_win():
+    df = _df(
+        [
+            ("full", "m", "v1", {f"t{i}": i < 30 for i in range(50)}),
+            ("partial", "n", "v1", {"t0": True, "t1": True}),
+        ]
+    )
+    lines = report.summary_prose(report.config_summary(df, 50), report.paired_comparisons(df))
+    assert lines[0].startswith("**Winner on accuracy: `full`**")

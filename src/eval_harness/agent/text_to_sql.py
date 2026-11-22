@@ -142,7 +142,9 @@ class TextToSQLAgent:
 
     @classmethod
     def from_config(cls, config: Config, llm: LLM | None = None, **kwargs: Any):
-        llm = llm or LiteLLMClient(config.model, temperature=config.temperature)
+        llm = llm or LiteLLMClient(
+            config.model, temperature=config.temperature, extra_params=config.llm_params
+        )
         return cls(
             llm,
             prompt_version=config.prompt_version,

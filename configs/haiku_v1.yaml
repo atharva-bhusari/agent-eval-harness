@@ -1,0 +1,15 @@
+# A/B grid cell: Claude Haiku 5.5 x prompt v1 (schema discovered through tools).
+id: haiku_v1
+model: anthropic/claude-haiku-5-5  # litellm model id
+prompt_version: v1
+# Haiku 5.5 rejects any non-default temperature with a 400, so send none (provider
+# default). Unlike the temperature-0 configs, repeat runs can differ: the response cache
+# pins one sample per prompt, but that is one draw, not a deterministic answer.
+temperature: null
+llm_params:
+  # Thinking is on by default on Haiku 5.5. Off here so every model in the grid runs the
+  # same plain tool loop (the agent does not round-trip thinking blocks). Allowed at the
+  # default effort (medium).
+  thinking: {type: disabled}
+max_iters: 12
+timeout_s: 60

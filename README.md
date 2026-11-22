@@ -10,14 +10,35 @@ The reference agent-under-test is a **LangGraph text-to-SQL agent** over a local
 the Northwind database (a food import/export company: customers, orders, products, suppliers,
 employees). It sits behind an `Agent` Protocol, so any agent can be swapped in.
 
-> **Status:** 🚧 Phases 0–6 complete (scaffold, Northwind DB + result canonicalization,
+> **Status:** 🚧 Phases 0–7 built (scaffold, Northwind DB + result canonicalization,
 > LangGraph text-to-SQL agent, 50-task verified golden set, async runner + SQLite store +
-> response cache, execution-accuracy scorer + root-cause failure classifier, Markdown
-> report + Streamlit dashboard). The model × prompt A/B results land in Phase 7; the current
-> report is in [results/REPORT.md](results/REPORT.md).
->
-> **First result:** llama3.1:8b (local, Ollama) with the v2 prompt scores **40/50 = 80%**
-> execution accuracy, at 27.5 s mean latency and $0. A cached re-run takes 2 minutes instead of 23.
+> response cache, scorer + root-cause failure classifier, report + dashboard, A/B sweep with
+> paired significance tests). The gpt-4o-mini half of the 2×2 grid has run; the Claude Haiku
+> 5.5 half is waiting on an API key. Full report: [results/REPORT.md](results/REPORT.md).
+
+## Results so far
+
+Execution accuracy on the 50-task golden set (95% Wilson interval), from
+[results/REPORT.md](results/REPORT.md) and the local runs:
+
+| config | model | prompt | accuracy | mean latency | cost / run |
+|---|---|---|---:|---:|---:|
+| `gpt4o_mini_v2` | gpt-4o-mini | v2 | **92%** (81–97%) | 4.1 s | $0.0005 |
+| `gpt4o_mini_v1` | gpt-4o-mini | v1 | 90% (79–96%) | 5.7 s | $0.0006 |
+| `ollama_llama_v2` | llama3.1:8b (local) | v2 | 80% (67–89%) | 27.5 s | $0 |
+| `haiku_v1` / `haiku_v2` | Claude Haiku 5.5 | v1 / v2 | pending | | |
+
+- **The prompt's value depends on the model.** v2 puts the schema in the prompt. For
+  gpt-4o-mini it adds only +2 points (2 tasks fixed, 1 broken; paired McNemar p = 1.0, so no real
+  difference), but it is 28% faster and 17% cheaper per task, because the model skips schema discovery
+  (2.3 tool calls per task instead of 5.2).
+  For llama3.1:8b it is the difference between failing and working: without it, the model
+  invents column names.
+- **Hard tasks are the ceiling.** Both gpt-4o-mini configs score 100% on easy tasks and 73% on
+  hard ones. The misses are real analyst mistakes, such as counting order lines instead of orders
+  after a join, or swapping `DATEDIFF`'s arguments, and two different models make the same ones.
+- Both gpt-4o-mini configs (100 runs) cost about **$0.06** in total. Re-running them costs $0,
+  because responses are cached.
 
 Try the agent on one question (free and local via [Ollama](https://ollama.com), after
 `ollama pull llama3.1:8b`):
@@ -62,7 +83,7 @@ make lint        # or: uv run python tasks.py lint
 | `reclassify` | re-label stored failures after a classifier change (no model calls) | 5 ✅ |
 | `report` | write `results/REPORT.md`: accuracy (95% CI), latency, cost, retries, failures | 6 ✅ |
 | `dashboard` | Streamlit app: leaderboard, accuracy by difficulty, failure taxonomy, task × config grid, per-task drill-down | 6 ✅ |
-| `sweep` | run the 2×2 A/B grid and regenerate the report | 7 |
+| `sweep` | run a grid of configs (`configs/sweeps/`) and regenerate the report; skips configs without an API key, `--max-usd` caps spend | 7 ✅ |
 | `smoke` | 5-task eval on a mocked LLM (CI) | 8 |
 
 ## Layout

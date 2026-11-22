@@ -24,6 +24,7 @@ from eval_harness.report import (
     default_store_path,
     failure_counts,
     load_runs,
+    paired_comparisons,
 )
 from eval_harness.types import DIFFICULTIES, FAILURE_CATEGORIES
 
@@ -205,6 +206,106 @@ def failure_chart(df: pd.DataFrame, scale: alt.Scale) -> None:
         st.dataframe(fc, width="stretch")
 
 
+def tradeoff_chart(df: pd.DataFrame, n_tasks: int, scale: alt.Scale) -> None:
+    st.subheader("Accuracy vs cost / latency")
+    axis = (
+        st.segmented_control(
+            "x axis",
+            ["cost / run", "latency / task"],
+            default="cost / run",
+            label_visibility="collapsed",
+        )
+        or "cost / run"
+    )
+    s = config_summary(df, n_tasks)
+    field, fmt, title = (
+        ("mean_cost_usd", "$.4f", "mean cost per run (USD)")
+        if axis == "cost / run"
+        else ("mean_latency_s", ".1f", "mean latency per task (s)")
+    )
+    base = alt.Chart(s).encode(
+        x=alt.X(
+            f"{field}:Q",
+            title=title,
+            axis=alt.Axis(format=fmt, grid=True),
+            scale=alt.Scale(zero=True, nice=True),
+        ),
+        y=alt.Y(
+            "accuracy:Q",
+            title=None,
+            axis=alt.Axis(format="%", grid=True),
+            scale=alt.Scale(domain=[0, 1]),
+        ),
+    )
+    points = base.mark_point(filled=True, size=140, opacity=1).encode(
+        color=alt.Color(
+            "config_id:N", scale=scale, title="config", legend=alt.Legend(orient="top")
+        ),
+        tooltip=[
+            alt.Tooltip("config_id:N", title="config"),
+            alt.Tooltip("accuracy:Q", format=".1%"),
+            alt.Tooltip("mean_cost_usd:Q", title="cost / run", format="$.4f"),
+            alt.Tooltip("mean_latency_s:Q", title="latency (s)", format=".1f"),
+            alt.Tooltip("n:Q", title="tasks run"),
+        ],
+    )
+    # Direct labels: with >3 series, colour alone isn't enough to tell points apart. The
+    # label stays in the theme's text colour; the dot beside it carries the identity.
+    labels = base.mark_text(align="left", dx=9, dy=-9, fontSize=12).encode(text="config_id:N")
+    st.altair_chart((points + labels).properties(height=300), width="stretch")
+    st.caption("Up and to the left is better. Partial runs (fewer tasks) are not comparable.")
+
+
+def head_to_head(df: pd.DataFrame) -> None:
+    st.subheader("Head-to-head (paired)")
+    pairs = paired_comparisons(df)
+    if pairs.empty:
+        st.info("Needs at least two configs that share tasks.")
+        return
+    view = pairs.assign(
+        acc=pairs.apply(lambda p: f"{p.acc_a:.0%} → {p.acc_b:.0%}", axis=1),
+        delta_pts=pairs["delta"] * 100,
+        verdict=pairs["p_value"].map(lambda p: "significant" if p < 0.05 else "not significant"),
+    )
+    st.dataframe(
+        view[
+            [
+                "kind",
+                "a",
+                "b",
+                "n",
+                "acc",
+                "delta_pts",
+                "a_only",
+                "b_only",
+                "p_value",
+                "verdict",
+                "b_only_tasks",
+                "a_only_tasks",
+            ]
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "kind": "differs in",
+            "a": "A",
+            "b": "B",
+            "n": st.column_config.NumberColumn("shared tasks"),
+            "acc": "accuracy A → B",
+            "delta_pts": st.column_config.NumberColumn("Δ (pts)", format="%+.0f"),
+            "a_only": st.column_config.NumberColumn("A only"),
+            "b_only": st.column_config.NumberColumn("B only"),
+            "p_value": st.column_config.NumberColumn("p (McNemar)", format="%.3f"),
+            "b_only_tasks": "fixed by B",
+            "a_only_tasks": "broken by B",
+        },
+    )
+    st.caption(
+        "Compared only on tasks both configs ran. A only / B only = tasks exactly one got "
+        "right; the exact McNemar test asks whether that split could be chance."
+    )
+
+
 def task_grid(df: pd.DataFrame, tasks: dict) -> None:
     st.subheader("Tasks × configs")
     only_fail = st.toggle("Only tasks that failed somewhere", value=True)
@@ -372,6 +473,11 @@ def main() -> None:
         difficulty_chart(df, scale)
     with right:
         failure_chart(df, scale)
+    left, right = st.columns(2)
+    with left:
+        tradeoff_chart(df, len(tasks), scale)
+    with right:
+        head_to_head(df)
     task_grid(df, tasks)
     drill_down(df, tasks, store_path)
 
